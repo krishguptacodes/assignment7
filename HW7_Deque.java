@@ -51,11 +51,11 @@ class Deque<T> {
   }
 
   public int size() {
-    return sizeHelper(this.header.next);
+    return sizeHelper(this.header);
   }
 
   public int sizeHelper(ANode<T> current) {
-    if (current == this.header) { 
+    if (current.next == this.header) { 
       return 0;
     } 
     else {
@@ -78,6 +78,7 @@ class ExamplesDeque {
   Deque<String> deque2; // "abc", "bcd", "cde", and "def"
   Deque<String> deque2Test1; // "abc", "bcd", "cde", and "def"
   Deque<String> deque3; // non-lexicographically 
+  Deque<String> deque3Test1; // non-lexicographically 
 
   Sentinel<String> sentinel2;
   ANode<String> abc;
@@ -100,7 +101,16 @@ class ExamplesDeque {
   ANode<String> date;
   ANode<String> fig;
   
-  String zzz;
+  Sentinel<String> sentinel3Test1;
+  ANode<String> apple1;
+  ANode<String> bannana1;
+  ANode<String> cherry1;
+  ANode<String> date1;
+  ANode<String> fig1;
+  ANode<String> kiwi1;
+  
+  String zzz = "zzz";
+  String kiwi = "kiwi";
   
 
   void init() {
@@ -109,8 +119,8 @@ class ExamplesDeque {
 
     // Example of lexicographically ordered deque
     sentinel2 = new Sentinel<String>();
-    abc = new Node<String>("abc", sentinel2, sentinel2); 
-    bcd = new Node<String>("bcd", abc, sentinel2);
+    abc = new Node<String>("abc", this.sentinel2, sentinel2); 
+    bcd = new Node<String>("bcd", this.abc, sentinel2);
     cde = new Node<String>("cde", bcd, sentinel2);
     def = new Node<String>("def", cde, sentinel2);
     deque2 = new Deque<String>(this.sentinel2);
@@ -125,7 +135,6 @@ class ExamplesDeque {
     deque2Test1 = new Deque<String>(this.sentinel2);
 
     // Example of non-lexicographically ordered deque
-
     sentinel3 = new Sentinel<String>();
     bannana = new Node<String>("bannana", sentinel3, sentinel3);
     cherry = new Node<String>("cherry", bannana, sentinel3);
@@ -134,7 +143,15 @@ class ExamplesDeque {
     fig = new Node<String>("fig", apple, sentinel3);
     deque3 = new Deque<String>(sentinel3);
     
-    zzz = "zzz";
+ // Example of non-lexicographically ordered deque for AddToHead testing
+    sentinel3Test1 = new Sentinel<String>();
+    kiwi1 = new Node<String>("kiwi", sentinel3, sentinel3);
+    bannana1 = new Node<String>("bannana", kiwi1, sentinel3);
+    cherry1 = new Node<String>("cherry", bannana, sentinel3);
+    date1 = new Node<String>("date", cherry, sentinel3);
+    apple1 = new Node<String>("apple", date, sentinel3);
+    fig1 = new Node<String>("fig", apple, sentinel3);
+    deque3Test1 = new Deque<String>(sentinel3);
     
   }
 
