@@ -8,20 +8,20 @@ abstract class ANode<T> {
   ANode<T> prev;
   
   // EFFECT: how many items are in the deque
-  abstract int sizeHelper();
+  public abstract int sizeHelper();
   
   // EFFECT: Removes the first node from the deque, returning 
   // the removed node's value
-  abstract T removeHeadHelp(Sentinel<T> header);
+  public abstract T removeHeadHelp(Sentinel<T> header);
   
   // EFFECT: Removes the last node from the deque, returning 
   // the removed node's value
-  abstract T removeTailHelp(Sentinel<T> header);
+  public abstract T removeTailHelp(Sentinel<T> header);
   
   // EFFECT: tales a Predicate<T> and produces the first node in this Deque for 
   // which the given predicate returns true or returns the header node in this Deque
   // if the predicate is not true for any node
-  abstract ANode<T> findHelp(Sentinel<T> header, Predicate<T> pred);
+  public abstract ANode<T> findHelp(Sentinel<T> header, Predicate<T> pred);
   
 }
 
@@ -47,12 +47,12 @@ class Sentinel<T> extends ANode<T> {
 
   // EFFECT: tales a Predicate<T> and returns the header node
   // if the predicate is not true for any node
-  ANode<T> findHelp(Sentinel<T> header, Predicate<T> pred) {
+  public ANode<T> findHelp(Sentinel<T> header, Predicate<T> pred) {
     return header;
   }
 
   // EFFECT: how many items are in the deque
-  int sizeHelper() {
+  public int sizeHelper() {
     return 0;
   }
 }
@@ -82,7 +82,7 @@ class Node<T> extends ANode<T> {
   }
   
   // EFFECT: how many items are in the deque
-  int sizeHelper() {
+  public int sizeHelper() {
     return 1 + this.next.sizeHelper();
   }
 
@@ -312,6 +312,33 @@ class ExamplesDeque {
     
   }
 
+  // testing the sizeHelper method of the ANode<T> class
+  void testSizeHelper(Tester t) {
+    this.init();
+    
+    t.checkExpect(this.emptySentinel.sizeHelper(), 0);
+    t.checkExpect(this.iSentinel2.sizeHelper(), 0);
+    
+  }
+  
+  // testing the removeHeadHelper method of the ANode<T> class
+  void removeHeadHelper(Tester t) {
+    this.init();
+    
+  }
+  
+  // testing the removeTailHelper method of the ANode<T> class
+  void removeTailHelper(Tester t) {
+    this.init();
+    
+  }
+  
+  // testing the findHelper method of the ANode<T> class
+  void findHelper(Tester t) {
+    this.init();
+    
+  }
+  
   // testing the size method of the Deque<T> class
   void testSize(Tester t) {
     this.init();
