@@ -7,12 +7,16 @@ import javalib.impworld.*;
 import java.awt.Color;
 import javalib.worldimages.*;
 
-class IConstants {
-  int WORLD_SCENE_X;
-  int WORLD_SCENE_Y;
+interface IConstants {
+  int WORLD_SCENE_X = 150;
+  int WORLD_SCENE_Y = 150;
 
-  int TILE_WIDTH;
-  int TILE_HEIGHT;
+  int TILE_WIDTH = 50;
+  int TILE_HEIGHT = 50;
+  
+  Color HIDDEN_COLOR = Color.GREEN;
+  Color OUTLINE_COLOR = Color.DARK_GRAY;
+  Color TEXT_COLOR = Color.BLACK;
 }
 
 class MineWorld extends World {
@@ -44,15 +48,8 @@ class MineWorld extends World {
 
   // Overides WorldScene in World, represents the current state of the world
   public WorldScene makeScene() {
-    return null;
-  }
-
-  public void onTick() {
-
-  }
-
-  public void onTickForTesting() {
-
+    return new Utils().draw(this.cellList, this.cols, this.rows,
+        new WorldScene(IConstants.WORLD_SCENE_X, IConstants.WORLD_SCENE_Y));
   }
 
   public void onKey() {
@@ -63,6 +60,24 @@ class MineWorld extends World {
 
 class Utils {
 
+  public WorldScene draw(ArrayList<ACell> cellList, int cols, int rows, WorldScene ws) {
+    int counter = 0;
+    WorldImage temp = new EmptyImage();
+    
+    for (int j = 0; j < rows; j++) {
+      
+      for (int i = 0; i < cols; i++) {
+        new BesideImage(cellList.get(counter).drawHelp(), temp);
+        counter += 1;
+      }
+      
+      new AboveImage(cellList.get(counter).drawHelp(), temp);
+    }
+    
+    ws.placeImageXY(temp, 0, 0);
+    return ws;
+  }
+  
   public ArrayList<ACell> buildList(int cols, int rows, int mines, Random rand) {
     ArrayList<ACell> result = new ArrayList<ACell>();
     ArrayList<Integer> mineSeeds = new Utils()
@@ -169,6 +184,15 @@ class Utils {
     }
     return result;
   }
+
+  public String countMines(ArrayList<ACell> neighbors) {
+    int result = 0;
+    
+    for(int i = 0; i < neighbors.size(); i++) {
+      result = result + neighbors.get(i).countHelp();
+    }
+    
+  }
 }
 
 abstract class ACell {
@@ -179,6 +203,10 @@ abstract class ACell {
     this.neighbors = neighbors;
     this.hidden = hidden;
   }
+
+  public abstract int countHelp();
+
+  public abstract WorldImage drawHelp();
 
   // Effect: adds the given cell to this cell's neighbor list
   public void addNeighbor(ACell neighbor) {
@@ -192,11 +220,51 @@ class EmptyCell extends ACell {
   EmptyCell(ArrayList<ACell> neighbors, boolean hidden) {
     super(neighbors, hidden);
   }
+
+  public WorldImage drawHelp() {
+    WorldImage base = new RectangleImage(IConstants.TILE_WIDTH, 
+        IConstants.TILE_WIDTH, OutlineMode.SOLID, IConstants.HIDDEN_COLOR);
+    WorldImage outline = new RectangleImage(IConstants.TILE_WIDTH, 
+        IConstants.TILE_WIDTH, OutlineMode.OUTLINE, IConstants.OUTLINE_COLOR);
+    WorldImage baseTile = new OverlayImage(outline, base);
+    
+    if (this.hidden) {
+      return baseTile;
+    }
+    else {
+      return new OverlayImage(new TextImage(new Utils().countMines(this.neighbors), 
+          IConstants.TEXT_COLOR), outline);
+    }
+  }
+
+  public int countHelp() {
+    return 0;
+  }
 }
 
 class MineCell extends ACell {
   MineCell(ArrayList<ACell> neighbors, boolean hidden) {
     super(neighbors, hidden);
+  }
+  
+  public WorldImage drawHelp() {
+    WorldImage base = new RectangleImage(IConstants.TILE_WIDTH, 
+        IConstants.TILE_WIDTH, OutlineMode.SOLID, IConstants.HIDDEN_COLOR);
+    WorldImage outline = new RectangleImage(IConstants.TILE_WIDTH, 
+        IConstants.TILE_WIDTH, OutlineMode.OUTLINE, IConstants.OUTLINE_COLOR);
+    WorldImage baseTile = new OverlayImage(outline, base);
+    
+    if (this.hidden) {
+      return baseTile;
+    }
+    else {
+      return new OverlayImage(new CircleImage(IConstants.TILE_WIDTH - 10, 
+          OutlineMode.SOLID, IConstants.HIDDEN_COLOR), outline);
+    }
+  }
+  
+  public int countHelp() {
+    return 1;
   }
 }
 
@@ -319,13 +387,6 @@ class ExamplesMinesweeper {
     t.checkExpect(new Utils().containsNumber(this.intList1, 6), true);
   }
 
-  void atestOnTickWithSeededRandom(Tester t) {
-    this.initTestConditions();
-
-    init1.onTickForTesting();
-    t.checkExpect(init1, mw1);
-
-  }
 
   void atestBigBang(Tester t) {
     MineWorld world = new MineWorld(0, 0, 0, new Random(1));
