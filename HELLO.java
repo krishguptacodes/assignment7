@@ -415,9 +415,33 @@ class ExamplesMinesweeper {
 
   void testMineWorldConstruct(Tester t) {
     this.initTestConditions();  
+    MineWorld world = new MineWorld(10, 10, 20, new Random(1));
 
-    //t.checkExpect(this.init1.cellList, this.cellList1);
+    t.checkExpect(world.cols, 10);
+    t.checkExpect(world.rows, 10);
+    t.checkExpect(world.mines, 20);
+    t.checkExpect(world.cellList.size(), 100); // cols * rows
+  }
+  
+  void testMineWorldExceptionHandling(Tester t) {
+    t.checkConstructorException(
+      new IllegalArgumentException("Cannot have more mines than tiles on board!"),
+      "MineWorld",
+      10, 10, 101 // More mines than possible
+    );
+  }
+  
+  void testMineWorldMineCount(Tester t) {
+    MineWorld world = new MineWorld(10, 10, 30, new Random(42)); 
 
+    int actualMineCount = 0;
+    for (ACell cell : world.cellList) {
+      if (cell.isMine()) {
+        actualMineCount++;
+      }
+    }
+
+    t.checkExpect(actualMineCount, 30);
   }
   
   // testing the countMines method
