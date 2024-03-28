@@ -9,15 +9,22 @@ import javalib.worldimages.*;
 
 // Constants class
 interface IConstants {
-//  int WORLD_SCENE_X = 600;
-//  int WORLD_SCENE_Y = 600;
+  //  int WORLD_SCENE_X = 600;
+  //  int WORLD_SCENE_Y = 600;
 
-  int TILE_SIZE = 200;
+  int TILE_SIZE = 20;
 
   Color HIDDEN_COLOR = Color.getHSBColor(0.25f, 0.62f, 0.60f);
   Color MINE_COLOR = Color.getHSBColor(1f, 0.62f, 0.60f);
   Color OUTLINE_COLOR = Color.DARK_GRAY;
   Color TEXT_COLOR = Color.BLACK;
+  Color FLAG_COLOR = Color.YELLOW;
+
+  WorldImage BASE_FILL = new RectangleImage(IConstants.TILE_SIZE, 
+      IConstants.TILE_SIZE, OutlineMode.SOLID, IConstants.HIDDEN_COLOR);
+  WorldImage OUTLINE = new RectangleImage(IConstants.TILE_SIZE, 
+      IConstants.TILE_SIZE, OutlineMode.OUTLINE, IConstants.OUTLINE_COLOR);
+  WorldImage BASE_TILE = new OverlayImage(IConstants.OUTLINE, IConstants.BASE_FILL);
 }
 
 // Represents the Minesweeper game world
@@ -28,6 +35,7 @@ class MineWorld extends World {
 
   ArrayList<ACell> cellList;
 
+  // Constructor for testing with custom random
   MineWorld(int cols, int rows, int mines, Random rand) {
     if (mines > (cols * rows)) {
       throw new IllegalArgumentException("Cannot have more mines than tiles on board!");
@@ -40,12 +48,31 @@ class MineWorld extends World {
     }
   }
 
-  MineWorld(int cols, int rows, int mines) {
-    this.cols = cols;
-    this.rows = rows;
-    this.mines = mines;
+  // Constructor for testing draw method with a given cell list
+  MineWorld(int cols, int rows, int mines, ArrayList<ACell> cellList) {
+    if (mines > (cols * rows)) {
+      throw new IllegalArgumentException("Cannot have more mines than tiles on board!");
+    }
+    else {
+      this.cols = cols;
+      this.rows = rows;
+      this.mines = mines;
+      this.cellList = cellList;
+    }
+  }
 
-    this.cellList = new Utils().buildList(cols, rows, mines, new Random());
+  // Constructor for real randomized games
+  MineWorld(int cols, int rows, int mines) {
+    if (mines > (cols * rows)) {
+      throw new IllegalArgumentException("Cannot have more mines than tiles on board!");
+    }
+    else {
+      this.cols = cols;
+      this.rows = rows;
+      this.mines = mines;
+
+      this.cellList = new Utils().buildList(cols, rows, mines, new Random());
+    }
   }
 
   // Overides WorldScene in World, represents the current state of the world
@@ -93,11 +120,11 @@ class Utils {
     for (int j = 0; j < rows; j++) {
       for (int i = 0; i < cols; i++) {
         if (new Utils().containsNumber(mineSeeds, counter)) {
-          result.add(new MineCell(new ArrayList<ACell>(), false));
+          result.add(new MineCell(new ArrayList<ACell>(), true, true));
           counter += 1;
         }
         else {
-          result.add(new EmptyCell(new ArrayList<ACell>(), false));
+          result.add(new EmptyCell(new ArrayList<ACell>(), false, false));
           counter += 1;
         }
       }
@@ -208,10 +235,12 @@ class Utils {
 abstract class ACell {
   ArrayList<ACell> neighbors;
   boolean hidden;
+  boolean flagged;
 
-  ACell(ArrayList<ACell> neighbors, boolean hidden) {
+  ACell(ArrayList<ACell> neighbors, boolean hidden, boolean flagged) {
     this.neighbors = neighbors;
     this.hidden = hidden;
+    this.flagged = flagged;
   }
 
   public abstract boolean isMine();
@@ -228,28 +257,32 @@ abstract class ACell {
 // Represents a cell that has no mine on it
 class EmptyCell extends ACell {
 
-  EmptyCell(ArrayList<ACell> neighbors, boolean hidden) {
-    super(neighbors, hidden);
+  EmptyCell(ArrayList<ACell> neighbors, boolean hidden, boolean flagged) {
+    super(neighbors, hidden, flagged);
   }
 
   public WorldImage drawHelp() {
-    WorldImage base = new RectangleImage(IConstants.TILE_SIZE, 
-        IConstants.TILE_SIZE, OutlineMode.SOLID, IConstants.HIDDEN_COLOR);
-    WorldImage outline = new RectangleImage(IConstants.TILE_SIZE, 
-        IConstants.TILE_SIZE, OutlineMode.OUTLINE, IConstants.OUTLINE_COLOR);
-    WorldImage baseTile = new OverlayImage(outline, base);
+    //    WorldImage base = new RectangleImage(IConstants.TILE_SIZE, 
+    //        IConstants.TILE_SIZE, OutlineMode.SOLID, IConstants.HIDDEN_COLOR);
+    //    WorldImage outline = new RectangleImage(IConstants.TILE_SIZE, 
+    //        IConstants.TILE_SIZE, OutlineMode.OUTLINE, IConstants.OUTLINE_COLOR);
+    //    WorldImage baseTile = new OverlayImage(outline, base);
     int mineNum = new Utils().countMines(this.neighbors);
 
-    if (this.hidden) {
-      return baseTile;
+    if (this.hidden && !this.flagged) {
+      return IConstants.BASE_TILE;
+    }
+    else if (this.hidden && this.flagged) {
+      return new OverlayImage(new EquilateralTriangleImage(IConstants.TILE_SIZE / 2, 
+          OutlineMode.SOLID, IConstants.FLAG_COLOR), IConstants.BASE_TILE);
     }
     else {
       if (mineNum > 0) {
         return new OverlayImage(new TextImage(mineNum + "", 
-            IConstants.TILE_SIZE / 2, IConstants.TEXT_COLOR), outline);
+            IConstants.TILE_SIZE / 2, IConstants.TEXT_COLOR), IConstants.OUTLINE);
       }
       else {
-        return outline;
+        return IConstants.OUTLINE;
       }
     }
   }
@@ -261,23 +294,27 @@ class EmptyCell extends ACell {
 
 // Represents a cell with a mine on it
 class MineCell extends ACell {
-  MineCell(ArrayList<ACell> neighbors, boolean hidden) {
-    super(neighbors, hidden);
+  MineCell(ArrayList<ACell> neighbors, boolean hidden, boolean flagged) {
+    super(neighbors, hidden, flagged);
   }
 
   public WorldImage drawHelp() {
-    WorldImage base = new RectangleImage(IConstants.TILE_SIZE, 
-        IConstants.TILE_SIZE, OutlineMode.SOLID, IConstants.HIDDEN_COLOR);
-    WorldImage outline = new RectangleImage(IConstants.TILE_SIZE, 
-        IConstants.TILE_SIZE, OutlineMode.OUTLINE, IConstants.OUTLINE_COLOR);
-    WorldImage baseTile = new OverlayImage(outline, base);
+    //    WorldImage base = new RectangleImage(IConstants.TILE_SIZE, 
+    //        IConstants.TILE_SIZE, OutlineMode.SOLID, IConstants.HIDDEN_COLOR);
+    //    WorldImage outline = new RectangleImage(IConstants.TILE_SIZE, 
+    //        IConstants.TILE_SIZE, OutlineMode.OUTLINE, IConstants.OUTLINE_COLOR);
+    //    WorldImage baseTile = new OverlayImage(outline, base);
 
-    if (this.hidden) {
-      return baseTile;
+    if (this.hidden && !this.flagged) {
+      return IConstants.BASE_TILE;
+    }
+    else if (this.hidden && this.flagged) {
+      return new OverlayImage(new EquilateralTriangleImage(IConstants.TILE_SIZE / 2, 
+          OutlineMode.SOLID, IConstants.FLAG_COLOR), IConstants.BASE_TILE);
     }
     else {
       return new OverlayImage(new CircleImage(IConstants.TILE_SIZE / 4, 
-          OutlineMode.SOLID, IConstants.MINE_COLOR), outline);
+          OutlineMode.SOLID, IConstants.MINE_COLOR), IConstants.OUTLINE);
     }
   }
 
@@ -290,7 +327,7 @@ class ExamplesMinesweeper {
 
   ACell cell1;
   ACell cell2;
-  ArrayList<ACell> cellList3;
+
 
   ArrayList<ACell> mtList;
   ArrayList<Integer> intList1;
@@ -300,11 +337,17 @@ class ExamplesMinesweeper {
   ArrayList<ACell> mtCellList;
   ArrayList<ACell> cellList1;
   ArrayList<ACell> cellList2;
+  ArrayList<ACell> cellList3;
+  ArrayList<ACell> cellList4;
 
   MineWorld init1;
   MineWorld mw1;
 
+  WorldScene twoByTwoWorld;
+
   void initTestConditions() {
+
+    twoByTwoWorld = new WorldScene(2 * IConstants.TILE_SIZE, 2 * IConstants.TILE_SIZE);
 
     mtList = new ArrayList<ACell>();
     intList1 = new ArrayList<Integer>(Arrays.asList(11, 1, 6, 3));
@@ -313,40 +356,60 @@ class ExamplesMinesweeper {
 
     mtCellList = new ArrayList<ACell>();
 
-    cellList1 = new ArrayList<ACell>(Arrays.asList(new EmptyCell(this.mtList, true),
-        new MineCell(this.mtList, true), new EmptyCell(this.mtList, true), 
-        new EmptyCell(this.mtList, true), new MineCell(this.mtList, true), 
-        new EmptyCell(this.mtList, true), new MineCell(this.mtList, true),
-        new EmptyCell(this.mtList, true), new MineCell(this.mtList, true)));
+    cellList1 = new ArrayList<ACell>(Arrays.asList(new EmptyCell(this.mtList, true, false),
+        new MineCell(this.mtList, true, false), new EmptyCell(this.mtList, true, false), 
+        new EmptyCell(this.mtList, true, false), new MineCell(this.mtList, true, false), 
+        new EmptyCell(this.mtList, true, false), new MineCell(this.mtList, true, false),
+        new EmptyCell(this.mtList, true, false), new MineCell(this.mtList, true, false)));
 
-    cellList2 = new ArrayList<ACell>(Arrays.asList(new EmptyCell(this.mtList, true),
-        new EmptyCell(this.mtList, true), new MineCell(this.mtList, true),
-        new EmptyCell(this.mtList, true)));
-    cellList2.get(0).addNeighbor(cellList2.get(1));
-    cellList2.get(0).addNeighbor(cellList2.get(2));
-    cellList2.get(0).addNeighbor(cellList2.get(3));
+    cellList2 = new ArrayList<ACell>(Arrays.asList(new EmptyCell(this.mtList, true, false),
+        new EmptyCell(this.mtList, true, false), new MineCell(this.mtList, true, false),
+        new EmptyCell(this.mtList, true, false)));
 
-    cellList2.get(1).addNeighbor(cellList2.get(0));
-    cellList2.get(1).addNeighbor(cellList2.get(3));
-    cellList2.get(1).addNeighbor(cellList2.get(2));
+    cellList2.get(0).neighbors.add(cellList2.get(1));
+    cellList2.get(0).neighbors.add(cellList2.get(2));
+    cellList2.get(0).neighbors.add(cellList2.get(3));
 
-    cellList2.get(2).addNeighbor(cellList2.get(3));
-    cellList2.get(2).addNeighbor(cellList2.get(0));
-    cellList2.get(2).addNeighbor(cellList2.get(1));
+    cellList2.get(1).neighbors.add(cellList2.get(0));
+    cellList2.get(1).neighbors.add(cellList2.get(3));
+    cellList2.get(1).neighbors.add(cellList2.get(2));
 
-    cellList2.get(3).addNeighbor(cellList2.get(2));
-    cellList2.get(3).addNeighbor(cellList2.get(1));
-    cellList2.get(3).addNeighbor(cellList2.get(0));
+    cellList2.get(2).neighbors.add(cellList2.get(3));
+    cellList2.get(2).neighbors.add(cellList2.get(0));
+    cellList2.get(2).neighbors.add(cellList2.get(1));
+
+    cellList2.get(3).neighbors.add(cellList2.get(2));
+    cellList2.get(2).neighbors.add(cellList2.get(0));
+    cellList2.get(2).neighbors.add(cellList2.get(1));
+
+    cell1 = new EmptyCell(mtList, true, false);
+    cell2 = new EmptyCell(mtList, true, false);
+
+    cellList3 = new ArrayList<ACell>();
+    
+    cellList4 = new ArrayList<ACell>(Arrays.asList(new EmptyCell(new ArrayList<ACell>(), false, false),
+        new EmptyCell(new ArrayList<ACell>(), false, false), new MineCell(new ArrayList<ACell>(), true, true),
+        new EmptyCell(new ArrayList<ACell>(), true, false)));
+    
+    cellList4.get(0).neighbors.add(cellList4.get(1));
+    cellList4.get(0).neighbors.add(cellList4.get(2));
+    cellList4.get(0).neighbors.add(cellList4.get(3));
+
+    cellList4.get(1).neighbors.add(cellList4.get(0));
+    cellList4.get(1).neighbors.add(cellList4.get(3));
+    cellList4.get(1).neighbors.add(cellList4.get(2));
+
+    cellList4.get(2).neighbors.add(cellList4.get(3));
+    cellList4.get(2).neighbors.add(cellList4.get(0));
+    cellList4.get(2).neighbors.add(cellList4.get(1));
+
+    cellList4.get(3).neighbors.add(cellList4.get(2));
+    cellList4.get(2).neighbors.add(cellList4.get(0));
+    cellList4.get(2).neighbors.add(cellList4.get(1));
 
 
     //init1 = new MineWorld(3, 3, 4, new Random(1));
     //mw1 = new MineWorld(3, 3, 4, new Random(1));
-
-    cell1 = new EmptyCell(mtList, true);
-    cell2 = new EmptyCell(mtList, true);
-
-    cellList3 = new ArrayList<ACell>();
-
   }
 
   void testMineWorldConstruct(Tester t) {
@@ -363,22 +426,23 @@ class ExamplesMinesweeper {
     t.checkExpect(new Utils().countMines(this.mtCellList), 0);
     t.checkExpect(new Utils().countMines(this.cellList1), 4);
     t.checkExpect(new Utils().countMines(this.cellList2), 1);
+    t.checkExpect(new Utils().countMines(this.cellList4), 1);
 
   }
 
-  void atestAddNeighbor(Tester t) {
+  void testAddNeighbor(Tester t) {
     this.initTestConditions();
 
-    cellList3.add(cell2);
     this.cell1.addNeighbor(cell2);
-
-    t.checkExpect(this.cell1.neighbors, cellList3);
+    this.cell2.addNeighbor(cell1);
+    t.checkExpect(this.cell1.neighbors.get(0), cell2);
+    t.checkExpect(this.cell2.neighbors.get(0), cell1);
   }
 
   void atestBuildList(Tester t) {
     this.initTestConditions();
 
-    //t.checkExpect(new Utils().buildList(2, 2, 1, new Random(1)), this.cellList2);
+    t.checkExpect(new Utils().buildList(2, 2, 1, new Random(1)), this.cellList2);
   }
 
   void testGetRow(Tester t) {
@@ -400,13 +464,13 @@ class ExamplesMinesweeper {
 
     t.checkExpect(new Utils().getCol(4, 3, 4), 0);
   }
-  
+
   void testIsMine(Tester t) {
     this.initTestConditions();
 
     t.checkExpect(this.cell1.isMine(), false);
     t.checkExpect(this.cell2.isMine(), false);
-    t.checkExpect(new MineCell(cellList1, false).isMine(), true);
+    t.checkExpect(new MineCell(cellList1, false, false).isMine(), true);
   }
 
   void testGenerateMineSeeds(Tester t) {
@@ -426,19 +490,46 @@ class ExamplesMinesweeper {
   }
 
   void testDraw(Tester t) {
+    this.initTestConditions();
+
+    WorldImage revealedEmpty = new OverlayImage(new TextImage("1", 
+        IConstants.TILE_SIZE / 2, IConstants.TEXT_COLOR), IConstants.OUTLINE);
+    WorldImage hiddenEmpty = new OverlayImage(IConstants.OUTLINE, IConstants.BASE_FILL);
+    WorldImage hiddenFlagged = new OverlayImage(new EquilateralTriangleImage(IConstants.TILE_SIZE / 2, 
+        OutlineMode.SOLID, IConstants.FLAG_COLOR), IConstants.BASE_TILE);
     
-  }
-  
-  void testMakeScene(Tester t) {
+    WorldImage row1 = new BesideImage(new BesideImage(new EmptyImage(), revealedEmpty), revealedEmpty);
+    WorldImage row2 = new BesideImage(new BesideImage(new EmptyImage(), hiddenFlagged), hiddenEmpty);
     
+    twoByTwoWorld.placeImageXY(new AboveImage(new AboveImage(new EmptyImage(), row1), row2),
+        IConstants.TILE_SIZE, IConstants.TILE_SIZE);
+
+    t.checkExpect(new Utils().draw(cellList4, 2, 2, 
+        new WorldScene(IConstants.TILE_SIZE * 2, IConstants.TILE_SIZE * 2)), this.twoByTwoWorld);
   }
 
-  void atestBigBang(Tester t) {
-    int columns = 3;
-    int rows = 3;
-    int mines = 2;
-    
+  void testMakeScene(Tester t) {
+
+  }
+
+  void testBigBang(Tester t) {
+    int columns = 30;
+    int rows = 16;
+    int mines = 99;
+
     MineWorld world = new MineWorld(columns, rows, mines, new Random(1));
+    int worldWidth = IConstants.TILE_SIZE * columns;
+    int worldHeight = IConstants.TILE_SIZE * rows;
+    double tickRate = .1;
+    world.bigBang(worldWidth, worldHeight, tickRate);
+  }
+  
+  void ztestBigBang2(Tester t) {
+    int columns = 2;
+    int rows = 2;
+    int mines = 1;
+
+    MineWorld world = new MineWorld(columns, rows, mines, this.cellList4);
     int worldWidth = IConstants.TILE_SIZE * columns;
     int worldHeight = IConstants.TILE_SIZE * rows;
     double tickRate = .1;
