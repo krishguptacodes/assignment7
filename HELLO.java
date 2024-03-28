@@ -81,10 +81,6 @@ class MineWorld extends World {
         new WorldScene(IConstants.TILE_SIZE * cols, IConstants.TILE_SIZE * rows));
   }
 
-  public void onKey() {
-
-  }
-
 }
 
 // Utils for Arraylist methods and calculation mehods
@@ -176,7 +172,7 @@ class Utils {
   }
 
   public int getCol(int cols, int rows, int i) {
-    if((i >= (rows * cols)) || i < 0) {
+    if ((i >= (rows * cols)) || i < 0) {
       return -1;
     }
     else {
@@ -185,7 +181,7 @@ class Utils {
   }
 
   public int getRow(int cols, int rows, int i) {
-    if((i >= (rows * cols)) || i < 0) {
+    if ((i >= (rows * cols)) || i < 0) {
       return -1;
     }
     else {
@@ -221,7 +217,7 @@ class Utils {
   public int countMines(ArrayList<ACell> neighbors) {
     int result = 0;
 
-    for(int i = 0; i < neighbors.size(); i++) {
+    for (int i = 0; i < neighbors.size(); i++) {
       if (neighbors.get(i).isMine()) {
         result += 1;
       }
@@ -390,8 +386,10 @@ class ExamplesMinesweeper {
 
     cellList3 = new ArrayList<ACell>();
     
-    cellList4 = new ArrayList<ACell>(Arrays.asList(new EmptyCell(new ArrayList<ACell>(), false, false),
-        new EmptyCell(new ArrayList<ACell>(), false, false), new MineCell(new ArrayList<ACell>(), true, true),
+    cellList4 = new ArrayList<ACell>(Arrays.asList(new EmptyCell(new ArrayList<ACell>(), 
+        false, false),
+        new EmptyCell(new ArrayList<ACell>(), false, false), 
+        new MineCell(new ArrayList<ACell>(), true, true),
         new EmptyCell(new ArrayList<ACell>(), true, false)));
     
     cellList4.get(0).neighbors.add(cellList4.get(1));
@@ -416,7 +414,7 @@ class ExamplesMinesweeper {
   }
 
   void testMineWorldConstruct(Tester t) {
-    this.initTestConditions();
+    this.initTestConditions();  
 
     //t.checkExpect(this.init1.cellList, this.cellList1);
 
@@ -449,6 +447,17 @@ class ExamplesMinesweeper {
     this.initTestConditions();
 
     t.checkExpect(new Utils().buildList(2, 2, 1, new Random(1)), this.cellList2);
+  }
+  
+  // testing the buildList with all mines 
+  void testBuildListWithAllMines(Tester t) {
+
+    ArrayList<ACell> result = new Utils().buildList(2, 2, 4, new Random());
+    
+    for (ACell cell : result) {
+      t.checkExpect(cell instanceof MineCell, true);
+      t.checkExpect(cell.isMine(), true);
+    }
   }
 
   // testing the getRow method
@@ -507,11 +516,14 @@ class ExamplesMinesweeper {
     WorldImage revealedEmpty = new OverlayImage(new TextImage("1", 
         IConstants.TILE_SIZE / 2, IConstants.TEXT_COLOR), IConstants.OUTLINE);
     WorldImage hiddenEmpty = new OverlayImage(IConstants.OUTLINE, IConstants.BASE_FILL);
-    WorldImage hiddenFlagged = new OverlayImage(new EquilateralTriangleImage(IConstants.TILE_SIZE / 2, 
+    WorldImage hiddenFlagged = new OverlayImage(new 
+        EquilateralTriangleImage(IConstants.TILE_SIZE / 2, 
         OutlineMode.SOLID, IConstants.FLAG_COLOR), IConstants.BASE_TILE);
     
-    WorldImage row1 = new BesideImage(new BesideImage(new EmptyImage(), revealedEmpty), revealedEmpty);
-    WorldImage row2 = new BesideImage(new BesideImage(new EmptyImage(), hiddenFlagged), hiddenEmpty);
+    WorldImage row1 = new BesideImage(new BesideImage(new EmptyImage(), revealedEmpty), 
+        revealedEmpty);
+    WorldImage row2 = new BesideImage(new BesideImage(new EmptyImage(), hiddenFlagged), 
+        hiddenEmpty);
     
     twoByTwoWorld.placeImageXY(new AboveImage(new AboveImage(new EmptyImage(), row1), row2),
         IConstants.TILE_SIZE, IConstants.TILE_SIZE);
