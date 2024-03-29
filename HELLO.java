@@ -466,11 +466,11 @@ class ExamplesMinesweeper {
     t.checkExpect(this.cell2.neighbors.get(0), cell1);
   }
   
-  // testing the buildList method
-  void atestBuildList(Tester t) {
-    this.initTestConditions();
+  void testBuildListSize(Tester t) {
+    Utils utils = new Utils();
+    ArrayList<ACell> cells = utils.buildList(5, 5, 10, new Random());
 
-    t.checkExpect(new Utils().buildList(2, 2, 1, new Random(1)), this.cellList2);
+    t.checkExpect(cells.size(), 25); // 5 * 5 = 25
   }
   
   // testing the buildList with all mines 
@@ -484,6 +484,21 @@ class ExamplesMinesweeper {
     }
   }
 
+  void testBuildListNeighborAssignments(Tester t) {
+    Utils utils = new Utils();
+    // Create a small, manageable board
+    ArrayList<ACell> cells = utils.buildList(3, 3, 3, new Random(42));
+
+    // Corner cell should have 3 neighbors
+    t.checkExpect(cells.get(0).neighbors.size(), 3);
+    
+    // Edge (non-corner) cell should have 5 neighbors
+    t.checkExpect(cells.get(1).neighbors.size(), 5);
+    
+    // Center cell should have 8 neighbors
+    t.checkExpect(cells.get(4).neighbors.size(), 8);
+  }
+  
   // testing the getRow method
   void testGetRow(Tester t) {
     this.initTestConditions();
