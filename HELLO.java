@@ -483,6 +483,25 @@ class ExamplesMinesweeper {
       t.checkExpect(cell.isMine(), true);
     }
   }
+  
+  void testBuildListDirectComparison(Tester t) {
+    Utils utils = new Utils();
+    ArrayList<ACell> generatedCells = utils.buildList(2, 2, 2, new Random(42)); // Fixed seed
+
+    ArrayList<ACell> expectedCells = new ArrayList<>();
+    expectedCells.add(new MineCell(new ArrayList<>(), true, false)); // Top-left
+    expectedCells.add(new EmptyCell(new ArrayList<>(), true, false)); // Top-right
+    expectedCells.add(new EmptyCell(new ArrayList<>(), true, false)); // Bottom-left
+    expectedCells.add(new MineCell(new ArrayList<>(), true, false)); // Bottom-right
+
+    for (int i = 0; i < generatedCells.size(); i++) {
+      ACell generatedCell = generatedCells.get(i);
+      ACell expectedCell = expectedCells.get(i);
+
+      t.checkExpect(generatedCell.getClass(), expectedCell.getClass());
+    }
+  }
+
 
   void testBuildListNeighborAssignments(Tester t) {
     Utils utils = new Utils();
