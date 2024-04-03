@@ -12,7 +12,7 @@ interface IConstants {
   //  int WORLD_SCENE_X = 600;
   //  int WORLD_SCENE_Y = 600;
 
-  int TILE_SIZE = 50;
+  int TILE_SIZE = 20;
   int Y_PADDING = 0;
   
   Color HIDDEN_COLOR = Color.getHSBColor(0.25f, 0.62f, 0.60f);
@@ -88,17 +88,14 @@ class MineWorld extends World {
 
 
   public void onMouseClicked(Posn pos, String buttonName){ 
+    int cellIndex = new Utils().findCellIndex(IConstants.TILE_SIZE, 
+        this.cols, this.rows, pos, IConstants.Y_PADDING);
     if (buttonName.equals("LeftButton")) {
-      int cellIndex = new Utils().findCellIndex(IConstants.TILE_SIZE, 
-          this.cols, this.rows, pos);
-      this.cellList.get(cellIndex).floodFill();
-      
+      System.out.print(cellIndex);
+      this.cellList.get(cellIndex).floodFill(new ArrayList<ACell>());
     }
     else if (buttonName.equals("RightButton")) {
-      
-    }
-    else {
-      
+      this.cellList.get(cellIndex).flipFlag();
     }
     
   }
@@ -249,10 +246,10 @@ class Utils {
     return result;    
   }
   
-  public int findCellIndex(int tileSize, int cols, int rows, Posn pos) {
+  public int findCellIndex(int tileSize, int cols, int rows, Posn pos, int padding) {
     int clickedCol = Math.floorDiv(pos.x, tileSize);
     int clickedRow = Math.floorDiv(pos.y, tileSize
-        + (IConstants.Y_PADDING * tileSize));
+        + (padding * tileSize));
     return ((clickedRow * cols) + clickedCol);
   }
 }
@@ -269,6 +266,11 @@ abstract class ACell {
     this.hidden = hidden;
     this.flagged = flagged;
   }
+
+  public void flipFlag() { this.flagged = !this.flagged; }
+
+  // floodFill behavior for revealing mines
+  public abstract void floodFill(ArrayList<ACell> visited);
 
   // Returns true if this is a mine
   public abstract boolean isMine();
@@ -328,6 +330,23 @@ class EmptyCell extends ACell {
   public boolean isMine() {
     return false;
   }
+
+  public void floodFill(ArrayList<ACell> visited) {
+    if (!this.flagged) {
+      this.hidden = false;
+    }
+    
+    if (new Utils().countMines(this.neighbors) < 1 && !this.flagged) {
+      visited.add(this);
+      for (int i = 0; i < this.neighbors.size(); i++) {
+        if (!visited.contains(this.neighbors.get(i))) {
+          this.neighbors.get(i).floodFill(visited);
+        }
+      }
+    }
+
+    
+  }
 }
 
 // Represents a cell with a mine on it
@@ -361,6 +380,13 @@ class MineCell extends ACell {
   public boolean isMine() {
     return true;
   }
+
+  @Override
+  public void floodFill(ArrayList<ACell> visited) {
+    // TODO zero cases
+    
+  }
+
 }
 
 class ExamplesMinesweeper {
@@ -585,9 +611,9 @@ class ExamplesMinesweeper {
   void testFindCellIndex(Tester t) {
     this.initTestConditions();
 
-    t.checkExpect(new Utils().findCellIndex(50, 3, 3, new Posn(10, 10)), 0);
-    t.checkExpect(new Utils().findCellIndex(50, 3, 3, new Posn(120, 51)), 5);
-    t.checkExpect(new Utils().findCellIndex(50, 10, 10, new Posn(340, 499)), 96);
+    t.checkExpect(new Utils().findCellIndex(50, 3, 3, new Posn(10, 10), 0), 0);
+    t.checkExpect(new Utils().findCellIndex(50, 3, 3, new Posn(120, 51), 0), 5);
+    t.checkExpect(new Utils().findCellIndex(50, 10, 10, new Posn(340, 499), 0), 96);
   }
 
   void testDraw(Tester t) {
@@ -662,7 +688,7 @@ class ExamplesMinesweeper {
     t.checkExpect(init1.makeScene(), this.mw1);
   }
 
-  void atestBigBang(Tester t) {
+  void testBigBang(Tester t) {
     this.initTestConditions();
     int columns = 30;
     int rows = 16;
