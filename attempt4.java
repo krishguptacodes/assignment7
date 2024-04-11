@@ -1,728 +1,795 @@
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Random;
+import java.util.ArrayDeque;
 
 import tester.*;
 import javalib.impworld.*;
 import java.awt.Color;
 import javalib.worldimages.*;
 
-// Constants class
 interface IConstants {
-  //  int WORLD_SCENE_X = 600;
-  //  int WORLD_SCENE_Y = 600;
+  int TILE_SIZE = 50;
 
-  int TILE_SIZE = 20;
-  int Y_PADDING = 0;
-  
-  Color HIDDEN_COLOR = Color.getHSBColor(0.25f, 0.62f, 0.60f);
-  Color MINE_COLOR = Color.getHSBColor(1f, 0.62f, 0.60f);
-  Color OUTLINE_COLOR = Color.DARK_GRAY;
-  Color TEXT_COLOR1 = Color.blue;
-  Color FLAG_COLOR = Color.YELLOW;
 
-  WorldImage BASE_FILL = new RectangleImage(IConstants.TILE_SIZE, 
-      IConstants.TILE_SIZE, OutlineMode.SOLID, IConstants.HIDDEN_COLOR);
-  WorldImage OUTLINE = new RectangleImage(IConstants.TILE_SIZE, 
-      IConstants.TILE_SIZE, OutlineMode.OUTLINE, IConstants.OUTLINE_COLOR);
-  WorldImage BASE_TILE = new OverlayImage(IConstants.OUTLINE, IConstants.BASE_FILL);
-
-  WorldImage FULL_EMPTY_TILE = new OverlayImage(IConstants.OUTLINE, 
-      new RectangleImage(IConstants.TILE_SIZE, 
-          IConstants.TILE_SIZE, OutlineMode.SOLID, Color.getHSBColor(.07f, 0.4f, 0.8f)));
 }
 
-// Represents the Minesweeper game world
-class MineWorld extends World {
-  int rows;
-  int cols;
-  int mines;
-  int score;
+class LightEmAll extends World {
+  // a list of columns of GamePieces,
+  // i.e., represents the board in column-major order
+  ArrayList<ArrayList<GamePiece>> board;
+  // a list of all nodes
+  ArrayList<GamePiece> nodes;
+  // a list of edges of the minimum spanning tree
+  ArrayList<Edge> mst;
+  // the width and height of the board
+  int width;
+  int height;
+  // the current location of the power station,
+  // as well as its effective radius
+  int powerRow;
+  int powerCol;
+  int radius;
+  String gameState;
 
-  ArrayList<ACell> cellList;
-
-  // Constructor for testing with custom random
-  MineWorld(int cols, int rows, int mines, Random rand, int score) {
-    if (mines > (cols * rows)) {
-      throw new IllegalArgumentException("Cannot have more mines than tiles on board!");
-    }
-    else {
-      this.cols = cols;
-      this.rows = rows;
-      this.mines = mines;
-      this.cellList = new Utils().buildList(cols, rows, mines, rand);
-      this.score = 0;
-    }
-  }
-
-  // Constructor for testing draw method with a given cell list
-  MineWorld(int cols, int rows, int mines, ArrayList<ACell> cellList) {
-    if (mines > (cols * rows)) {
-      throw new IllegalArgumentException("Cannot have more mines than tiles on board!");
-    }
-    else {
-      this.cols = cols;
-      this.rows = rows;
-      this.mines = mines;
-      this.cellList = cellList;
-    }
-  }
-
-  // Constructor for real randomized games
-  MineWorld(int cols, int rows, int mines) {
-    if (mines > (cols * rows)) {
-      throw new IllegalArgumentException("Cannot have more mines than tiles on board!");
-    }
-    else {
-      this.cols = cols;
-      this.rows = rows;
-      this.mines = mines;
-
-      this.cellList = new Utils().buildList(cols, rows, mines, new Random());
-    }
-  }
-
-  // Overides WorldScene in World, represents the current state of the world
-  public WorldScene makeScene() {
-    return new Utils().draw(this.cellList, this.cols, this.rows,
-        new WorldScene(IConstants.TILE_SIZE * cols, IConstants.TILE_SIZE * rows));
-  }
-
-
-  public void onMouseClicked(Posn pos, String buttonName){ 
-    int cellIndex = new Utils().findCellIndex(IConstants.TILE_SIZE, 
-        this.cols, this.rows, pos, IConstants.Y_PADDING);
-    if (buttonName.equals("LeftButton")) {
-      System.out.print(cellIndex);
-      this.cellList.get(cellIndex).floodFill(new ArrayList<ACell>());
-    }
-    else if (buttonName.equals("RightButton")) {
-      this.cellList.get(cellIndex).flipFlag();
-    }
+  // Constructor for real "random" games
+  LightEmAll(ArrayList<ArrayList<GamePiece>> board,  ArrayList<GamePiece> nodes, ArrayList<Edge> mst,
+      int width, int height, int powerRow, int powerCol, int radius) {
+    this.board = board;
+    this.nodes = nodes;
+    this.mst = mst;
+    this.width = width;
+    this.height = height;
+    this.powerRow = powerRow;
+    this.powerCol = powerCol;
+    this.radius = radius;
+    this.gameState = "";
     
-  }
-
-}
-
-// Utils for Arraylist methods and calculation mehods
-class Utils {
-
-  public WorldScene draw(ArrayList<ACell> cellList, int cols, 
-      int rows, int score, WorldScene ws) {
-    int counter = 0;
-    WorldImage scoreRect = new RectangleImage (IConstants.TILE_SIZE * cols, 
-        IConstants.TILE_SIZE, OutlineMode.OUTLINE ,IConstants.OUTLINE_COLOR);
-    WorldImage textImage = new TextImage (score + "", IConstants.TILE_SIZE / 2, 
-        IConstants.TEXT_COLOR1);
-    WorldImage rowAcc = new EmptyImage();
-    WorldImage result = new EmptyImage();
-
-    for (int j = 0; j < rows; j++) {
-      for (int i = 0; i < cols; i++) {
-        rowAcc = new BesideImage(rowAcc, cellList.get(counter).drawHelp());
-        counter = counter + 1;
+    
+    for (int i = 0; i < this.board.size(); i++) {
+      for (int j = 0; j < this.board.get(i).size(); j++) {
+        this.board.get(i).get(j).randomRotatePiece(new Random());
       }
-      result = new AboveImage(result, rowAcc);
-      rowAcc = new EmptyImage();
     }
-
-    result = new AboveImage (new OverlayImage(textImage, scoreRect), result);
-    ws.placeImageXY(result, IConstants.TILE_SIZE * cols / 2, 
-        IConstants.TILE_SIZE * rows / 2);
+  }
+  
+  // Constructor for testing different states with given random
+  LightEmAll(ArrayList<ArrayList<GamePiece>> board,  ArrayList<GamePiece> nodes, ArrayList<Edge> mst,
+      int width, int height, int powerRow, int powerCol, int radius, String gameState, Random rand) {
+    this.board = board;
+    this.nodes = nodes;
+    this.mst = mst;
+    this.width = width;
+    this.height = height;
+    this.powerRow = powerRow;
+    this.powerCol = powerCol;
+    this.radius = radius;
+    this.gameState = gameState;
     
-    return ws;
+    
+    for (int i = 0; i < this.board.size(); i++) {
+      for (int j = 0; j < this.board.get(i).size(); j++) {
+        this.board.get(i).get(j).randomRotatePiece(rand);
+      }
+    }
+  }
+  
+  // Constructor for testing different states without random
+  LightEmAll(ArrayList<ArrayList<GamePiece>> board,  ArrayList<GamePiece> nodes, ArrayList<Edge> mst,
+      int width, int height, int powerRow, int powerCol, int radius, String gameState) {
+    this.board = board;
+    this.nodes = nodes;
+    this.mst = mst;
+    this.width = width;
+    this.height = height;
+    this.powerRow = powerRow;
+    this.powerCol = powerCol;
+    this.radius = radius;
+    this.gameState = gameState;
     
   }
 
-  // Builds an ArrayList of mines and links neighboring mines
-  public ArrayList<ACell> buildList(int cols, int rows, int mines, Random rand) {
-    ArrayList<ACell> result = new ArrayList<ACell>();
-    ArrayList<Integer> mineSeeds = new Utils()
-        .generateMineSeeds(rand, mines, rows * cols);
-    int counter = 0;
-
-    for (int j = 0; j < rows; j++) {
-      for (int i = 0; i < cols; i++) {
-        if (new Utils().containsNumber(mineSeeds, counter)) {
-          result.add(new MineCell(new ArrayList<ACell>(), true, false));
-          counter += 1;
+  // Builds the current WorldScene
+  public WorldScene makeScene() {
+    // Power connected wires using BFS
+    for (int i = 0; i < this.board.size(); i++) {
+      for (int j = 0; j < this.board.get(i).size(); j++) {
+        if (new ArrayListUtils()
+            .bfs(board, this.board.get(powerCol).get(powerRow), 
+                this.board.get(i).get(j))) {
+          this.board.get(i).get(j).powered = true;
         }
         else {
-          result.add(new EmptyCell(new ArrayList<ACell>(), true, false));
-          counter += 1;
+          this.board.get(i).get(j).powered = false;
         }
       }
     }
-
-    for (int i = 0; i < result.size(); i++) {
-      int currentCol = new Utils().getCol(cols, rows, i);
-      int currentRow = new Utils().getRow(cols, rows, i);
-
-      // add left neighbor
-      if (currentCol > 0) {
-        result.get(i).addNeighbor(result.get(i - 1));
+    
+    // Check if all lines are powered using BFS
+    int currentLit = 0;
+    for (int i = 0; i < this.board.size(); i++) {
+      for (int j = 0; j < this.board.get(i).size(); j++) {
+        if (new ArrayListUtils()
+            .bfs(board, this.board.get(powerCol).get(powerRow), 
+                this.board.get(i).get(j))) {
+          currentLit += 1;
+        }
+        else {
+          currentLit -= 1;
+        }
       }
-      // add right neighbor
-      if (currentCol < cols - 1) {
-        result.get(i).addNeighbor(result.get(i + 1));
-      }
-      // add top neighbor 
-      if (currentRow > 0) {
-        result.get(i).addNeighbor(result.get(i - cols));
-      }
-      // add bottom neighbor 
-      if (currentRow < rows - 1) {
-        result.get(i).addNeighbor(result.get(i + cols));
-      }
-      // add top-left neighbor 
-      if (currentRow > 0 && currentCol > 0) {
-        result.get(i).addNeighbor(result.get(i - cols - 1));
-      }
-      // add top-right neighbor
-      if (currentRow > 0 && currentCol < cols - 1) {
-        result.get(i).addNeighbor(result.get(i - cols + 1));
-      }
-      // add bottom-left neighbor 
-      if (currentRow < rows - 1 && currentCol > 0) {
-        result.get(i).addNeighbor(result.get(i + cols - 1));
-      }
-      // add bottom-right neighbor 
-      if (currentRow < rows - 1 && currentCol < cols - 1) {
-        result.get(i).addNeighbor(result.get(i + cols + 1));
-      }
-
     }
-
-    return result;
-  }
-
-  // Gets the column position of a cell in an ArrayList
-  public int getCol(int cols, int rows, int i) {
-    if ((i >= (rows * cols)) || i < 0) {
-      return -1;
+    if (currentLit == width * height) {
+      this.gameState = "win";
+    }
+    
+    // Draw the scene
+    if (this.gameState.equals("win")) {
+      WorldScene winScreen = new WorldScene(width * IConstants.TILE_SIZE, height * IConstants.TILE_SIZE + IConstants.TILE_SIZE);
+      winScreen.placeImageXY(new TextImage("You Win!", 
+          IConstants.TILE_SIZE / 2, Color.black), 
+          IConstants.TILE_SIZE * width / 2, 
+          ((IConstants.TILE_SIZE * height) / 2));
+      return winScreen;
     }
     else {
-      return i % cols;
+      return new ArrayListUtils().draw(board, width, height, powerRow, powerCol, radius, 
+          new WorldScene(width * IConstants.TILE_SIZE, height * IConstants.TILE_SIZE + IConstants.TILE_SIZE));
     }
-  }
-
-  // Gets the row position of a cell in an ArrayList
-  public int getRow(int cols, int rows, int i) {
-    if ((i >= (rows * cols)) || i < 0) {
-      return -1;
-    }
-    else {
-      return Math.floorDiv(i, cols);
-    }
-  }
-
-  // Gets the column position of a cell in an ArrayList
-  public ArrayList<Integer> generateMineSeeds(Random random, int num, int bound) {
-    ArrayList<Integer> result = new ArrayList<Integer>();
-
-    while (result.size() < num) {
-      int newInt = random.nextInt(bound);
-
-      if (!(new Utils().containsNumber(result, newInt))) {
-        result.add(newInt);
-      }
-    }
-
-    return result;
-  }
-
-  // Tests if the given ArrayList has the given int
-  public boolean containsNumber(ArrayList<Integer> intList, int findInt) {
-    boolean result = false;
-
-    for (int i = 0; i < intList.size(); i++) {
-      if (intList.get(i) == findInt) {
-        result = true;
-      }
-    }
-    return result;
-  }
-
-  // Counts the number of mines in the list of ACells
-  public int countMines(ArrayList<ACell> neighbors) {
-    int result = 0;
-
-    for (int i = 0; i < neighbors.size(); i++) {
-      if (neighbors.get(i).isMine()) {
-        result += 1;
-      }
-    }
-    return result;    
+    
   }
   
-  public int findCellIndex(int tileSize, int cols, int rows, Posn pos, int padding) {
-    int clickedCol = Math.floorDiv(pos.x, tileSize);
-    int clickedRow = Math.floorDiv(pos.y, tileSize
-        + (padding * tileSize));
-    return ((clickedRow * cols) + clickedCol);
+
+  public void onKeyEvent(String key) {
+    if (key.equals("left") && !(this.powerCol == 0)) {
+      if (this.board.get(powerCol).get(powerRow)
+          .leftConnects(this.board.get(powerCol - 1).get(powerRow))) {
+        this.powerCol -= 1;
+      }
+    }
+    else if (key.equals("right") && !(this.powerCol == this.width - 1)) {
+      if (this.board.get(powerCol).get(powerRow)
+          .rightConnects(this.board.get(powerCol + 1).get(powerRow))) {
+        this.powerCol += 1;
+      }
+    }
+    else if (key.equals("up") && !(this.powerRow == 0)) {
+      if (this.board.get(powerCol).get(powerRow)
+          .topConnects(this.board.get(powerCol).get(powerRow - 1))) {
+        this.powerRow -= 1;
+      }
+    }
+    else if (key.equals("down") && !(this.powerRow == this.height - 1)) {
+      if (this.board.get(powerCol).get(powerRow)
+          .bottomConnects(this.board.get(powerCol).get(powerRow + 1))) {
+        this.powerRow += 1;
+      }
+    }
   }
+  
+  // Handles mouse inputs
+  public void onMouseClicked(Posn pos, String buttonName) { 
+    Posn cellIndex = new Utils().findMousePos(IConstants.TILE_SIZE, 
+        this.width, this.height, pos);
+    
+    // Check for left mouse input and if that the player clicks on the board
+    if (buttonName.equals("LeftButton") && cellIndex.y >= 0 && cellIndex.x >= 0) {
+      this.board.get(cellIndex.x).get(cellIndex.y).rotatePiece();
+    }
+  }
+  
 }
 
-// Represents an abstract cell class with an ArrayList 
-// of neighbors and a boolean flag if the mine is hidden
-abstract class ACell {
-  ArrayList<ACell> neighbors;
-  boolean hidden;
-  boolean flagged;
+class GamePiece {
+  // in logical coordinates, with the origin
+  // at the top-left corner of the screen
+  int row;
+  int col;
+  // whether this GamePiece is connected to the
+  // adjacent left, right, top, or bottom pieces
+  boolean left;
+  boolean right;
+  boolean top;
+  boolean bottom;
+  boolean powered;
 
-  ACell(ArrayList<ACell> neighbors, boolean hidden, boolean flagged) {
-    this.neighbors = neighbors;
-    this.hidden = hidden;
-    this.flagged = flagged;
+  GamePiece (int row, int col, boolean left, boolean right, boolean top, 
+      boolean bottom, boolean powered){
+    this.row = row;
+    this.col = col;
+    this.left = left;
+    this.right = right;
+    this.top = top;
+    this.bottom = bottom;
+    this.powered = powered;
   }
 
-  public void flipFlag() { this.flagged = !this.flagged; }
+  // Checks if given piece can connect to the left game piece
+  public boolean leftConnects(GamePiece other) {
+    return other.right && this.left;
+  }
+  // Checks if given piece can connect to the right game piece
+  public boolean rightConnects(GamePiece other) {
+    return other.left && this.right;
+  }
+  // Checks if given piece can connect to the top game piece
+  public boolean topConnects(GamePiece other) {
+    return other.bottom && this.top;
+  }
+  // Checks if given piece can connect to the bottom game piece
+  public boolean bottomConnects(GamePiece other) {
+    return other.top && this.bottom;
+  }
 
-  // floodFill behavior for revealing mines
-  public abstract void floodFill(ArrayList<ACell> visited);
+  WorldImage tileImage(int size, int wireWidth, boolean hasPowerStation) {
 
-  // Returns true if this is a mine
-  public abstract boolean isMine();
+    Color wireColor = Color.gray;
+    if (powered || hasPowerStation) {
+      wireColor = Color.yellow;
+    }
+    
+    WorldImage image = new OverlayImage(
+        new RectangleImage(wireWidth, wireWidth, OutlineMode.SOLID, wireColor),
+        new RectangleImage(size, size, OutlineMode.SOLID, Color.DARK_GRAY));
+    WorldImage vWire = new RectangleImage(wireWidth, (size + 1) / 2, OutlineMode.SOLID, wireColor);
+    WorldImage hWire = new RectangleImage((size + 1) / 2, wireWidth, OutlineMode.SOLID, wireColor);
 
-  // Draws an individual cell
-  public abstract WorldImage drawHelp();
+    if (this.top) image = new OverlayOffsetAlign(AlignModeX.CENTER, AlignModeY.TOP, vWire, 0, 0, image);
+    if (this.right) image = new OverlayOffsetAlign(AlignModeX.RIGHT, AlignModeY.MIDDLE, hWire, 0, 0, image);
+    if (this.bottom) image = new OverlayOffsetAlign(AlignModeX.CENTER, AlignModeY.BOTTOM, vWire, 0, 0, image);
+    if (this.left) image = new OverlayOffsetAlign(AlignModeX.LEFT, AlignModeY.MIDDLE, hWire, 0, 0, image);
+    if (hasPowerStation) {
+      image = new OverlayImage(
+          new OverlayImage(
+              new StarImage(size / 3, 7, OutlineMode.OUTLINE, new Color(255, 128, 0)),
+              new StarImage(size / 3, 7, OutlineMode.SOLID, new Color(0, 255, 255))),
+          image);
+    }
+    image = new OverlayImage(new RectangleImage(size, size, OutlineMode.OUTLINE, Color.BLACK), image);
+    return image;
+  }
 
-  // Effect: adds the given cell to this cell's neighbor list
-  public void addNeighbor(ACell neighbor) {
-    this.neighbors.add(neighbor);
+  public void rotatePiece() {
+    boolean newLeft = false;
+    boolean newTop = false;
+    boolean newRight = false;
+    boolean newBottom = false;
+    if (this.left) {
+      newTop = true;
+    }
+    if (this.top) {
+      newRight = true;
+    }
+    if (this.right) {
+      newBottom = true;
+    }
+    if (this.bottom) {
+      newLeft = true;
+    }
+    this.left = newLeft;
+    this.right = newRight;
+    this.bottom = newBottom;
+    this.top = newTop;
+  }
+  
+  public void randomRotatePiece(Random rand) {
+    int numRotations = rand.nextInt(4);
+    
+    for (int i = 0; i <= numRotations; i++) {
+      this.rotatePiece();
+    }
   }
 
 }
 
-// Represents a cell that has no mine on it
-class EmptyCell extends ACell {
+class Edge {
+  // For part 2
+}
 
-  EmptyCell(ArrayList<ACell> neighbors, boolean hidden, boolean flagged) {
-    super(neighbors, hidden, flagged);
+class ArrayListUtils {
+
+  // Draws the board of GamePieces
+  public WorldScene draw(ArrayList<ArrayList<GamePiece>> board, int width, 
+      int height, int powerRow, int powerCol, int radius, WorldScene ws) {
+    WorldImage result = new EmptyImage();
+    WorldImage colImage = new EmptyImage();
+    WorldImage scoreBar = new RectangleImage(width * IConstants.TILE_SIZE, 
+        IConstants.TILE_SIZE, OutlineMode.SOLID, new Color(255, 239, 166));
+
+    for (int i = 0; i < board.size(); i++) {
+      for (int j = 0; j < board.get(i).size(); j++) {
+        if (powerCol == i && powerRow == j) {
+          colImage = new AboveImage(colImage, board.get(i).get(j)
+              .tileImage(IConstants.TILE_SIZE, 5, true));
+        }
+        else {
+          colImage = new AboveImage(colImage, board.get(i).get(j)
+              .tileImage(IConstants.TILE_SIZE, 5, false));
+        }
+      }
+      result = new BesideImage(result, colImage);
+      colImage = new EmptyImage();
+    } 
+
+    result = new AboveImage(scoreBar, result);
+    ws.placeImageXY(result, IConstants.TILE_SIZE * width / 2, ((IConstants.TILE_SIZE * height)
+        + IConstants.TILE_SIZE) / 2);
+    return ws;
   }
-
-  // draws the individual empty cell
-  public WorldImage drawHelp() {
-    //    WorldImage base = new RectangleImage(IConstants.TILE_SIZE, 
-    //        IConstants.TILE_SIZE, OutlineMode.SOLID, IConstants.HIDDEN_COLOR);
-    //    WorldImage outline = new RectangleImage(IConstants.TILE_SIZE, 
-    //        IConstants.TILE_SIZE, OutlineMode.OUTLINE, IConstants.OUTLINE_COLOR);
-    //    WorldImage baseTile = new OverlayImage(outline, base);
-    int mineNum = new Utils().countMines(this.neighbors);
-
-    if (this.hidden && !this.flagged) {
-      return IConstants.BASE_TILE;
+  
+  boolean bfs(ArrayList<ArrayList<GamePiece>> board, GamePiece from, GamePiece to) {
+    ArrayDeque<GamePiece> alreadySeen = new ArrayDeque<GamePiece>();
+    ArrayDeque<GamePiece> worklist = new ArrayDeque<GamePiece>();
+   
+    // Initialize the worklist with the from vertex
+    worklist.addFirst(from);
+    // As long as the worklist isn't empty...
+    while (!worklist.isEmpty()) {
+      GamePiece next = worklist.removeLast();
+      if (next.equals(to)) {
+        return true; // Success!
+      }
+      else if (alreadySeen.contains(next)) {
+        // do nothing: we've already seen this one
+      }
+      else {
+        // add all the neighbors of next to the worklist for further processing
+        for (GamePiece gp :  new ArrayListUtils().getConnectedNeighbors(board, next)) {
+          worklist.addLast(gp);
+          gp.powered = true;
+        }
+        // add next to alreadySeen, since we're done with it
+        alreadySeen.addFirst(next);
+      }
     }
-    else if (this.hidden && this.flagged) {
-      return new OverlayImage(new EquilateralTriangleImage(IConstants.TILE_SIZE / 2, 
-          OutlineMode.SOLID, IConstants.FLAG_COLOR), IConstants.BASE_TILE);
-    }
-    else if (mineNum == 1) {
-      return new OverlayImage(new TextImage(mineNum + "", 
-          IConstants.TILE_SIZE / 2, IConstants.TEXT_COLOR1), IConstants.FULL_EMPTY_TILE);
-    }
-    else if (mineNum == 2) {
-      return new OverlayImage(new TextImage(mineNum + "", 
-          IConstants.TILE_SIZE / 2, Color.green), IConstants.FULL_EMPTY_TILE);
-    }
-    else if (mineNum > 2) {
-      return new OverlayImage(new TextImage(mineNum + "", 
-          IConstants.TILE_SIZE / 2, Color.red), IConstants.FULL_EMPTY_TILE);
-    }
-    else {
-      return IConstants.FULL_EMPTY_TILE;
-    }
-
-  }
-
-  // Returns true if this is a mine
-  public boolean isMine() {
+    // We haven't found the to vertex, and there are no more to try
     return false;
   }
 
-  public void floodFill(ArrayList<ACell> visited) {
-    if (!this.flagged) {
-      this.hidden = false;
+
+  public ArrayList<GamePiece> getConnectedNeighbors(ArrayList<ArrayList<GamePiece>> board, GamePiece from) {
+    ArrayList<GamePiece> result = new ArrayList<GamePiece>();
+
+    if (from.col > 0) {
+      if (from.leftConnects(board.get(from.col - 1).get(from.row))) {
+        result.add(board.get(from.col - 1).get(from.row));
+      }
     }
     
-    if (new Utils().countMines(this.neighbors) < 1 && !this.flagged) {
-      visited.add(this);
-      for (int i = 0; i < this.neighbors.size(); i++) {
-        if (!visited.contains(this.neighbors.get(i))) {
-          this.neighbors.get(i).floodFill(visited);
+    if (from.col < board.size() - 1) {
+
+      if (from.rightConnects(board.get(from.col + 1).get(from.row))) {
+
+        result.add(board.get(from.col + 1).get(from.row));
+      }
+    }
+    if (from.row > 0) {
+      if (from.topConnects(board.get(from.col).get(from.row - 1))) {
+        result.add(board.get(from.col).get(from.row - 1));
+
+      }
+    }
+    if (from.row < board.get(0).size() - 1) {
+      if (from.bottomConnects(board.get(from.col).get(from.row + 1))) {
+        result.add(board.get(from.col).get(from.row + 1));
+      }
+    }
+    return result;
+    
+  }
+
+}
+
+// Utility methods
+class Utils {
+  public Posn findMousePos(int tileSize, int width, int height, Posn pos) {
+    int clickedCol = Math.floorDiv(pos.x, tileSize);
+    int clickedRow = Math.floorDiv(pos.y, tileSize) - 1;
+    
+    return new Posn(clickedCol, clickedRow);
+  }
+  
+}
+
+class ExamplesLightEmAll {
+  WorldScene fourScene;
+  WorldScene sixScene;
+  
+  ArrayList<ArrayList<GamePiece>> horizontalBoard;
+  ArrayList<ArrayList<GamePiece>> verticalBoard;
+  
+  ArrayList<ArrayList<GamePiece>> fourBoard;
+  ArrayList<ArrayList<GamePiece>> fourBoardRand;
+  ArrayList<ArrayList<GamePiece>> sixBoard;
+  
+  World fourWorld;
+  World fourWorldRand;
+  World fourWorldWin;
+  
+  GamePiece gp1;
+  GamePiece gp2;
+  GamePiece gp3;
+  GamePiece gp4;
+  GamePiece gp5;
+  GamePiece gp6;
+  
+  // For testing draw on a 2x2 board
+  GamePiece lWire;
+  GamePiece bWire;
+  GamePiece rtWire;
+  GamePiece rbWire;
+  
+  // To be randomized and drawn on a 2x2 board
+  GamePiece lWireR;
+  GamePiece bWireR;
+  GamePiece rtWireR;
+  GamePiece rbWireR;
+  
+  // For testing draw on a 2x3 board
+  GamePiece lWire1ForSix;
+  GamePiece lWire2ForSix;
+  GamePiece rtWireForSix;
+  GamePiece rbWireForSix;  
+  GamePiece lbWireForSix;
+  GamePiece tWireForSix;
+  
+  GamePiece testPieceL;
+  GamePiece testPieceR;
+  
+  void init() {
+
+    testPieceL = new GamePiece(1, 1, true, false, false, false, false); 
+    testPieceR = new GamePiece(0, 1, false, true, true, false, false);
+    
+    // For testing left, right, top, bottom connects
+    gp1 = new GamePiece(1, 0, true, false, false, false, false);
+    gp2 = new GamePiece(8, 4, false, true, false, false, false);
+    gp3 = new GamePiece(1, 1, false, false, true, false, false);
+    gp4 = new GamePiece(2, 7, false, false, false, true, false);
+    gp5 = new GamePiece(2, 7, true, true, true, true, false);
+    gp6 = new GamePiece(0, 0, true, false, true, true, false);
+
+    // For testing draw on a 2x2 board
+    lWire = new GamePiece(1, 1, true, false, false, false, true);
+    bWire = new GamePiece(0, 1, false, false, false, true, false);
+    rtWire = new GamePiece(1, 0, false, true, true, false, true);
+    rbWire = new GamePiece(0, 0, false, true, false, true, true);
+    
+    this.fourBoard = new ArrayList<ArrayList<GamePiece>>();
+    fourBoard.add(new ArrayList<GamePiece>());
+    fourBoard.add(new ArrayList<GamePiece>());
+    fourBoard.get(0).add(this.rbWire);
+    fourBoard.get(0).add(this.rtWire);
+    fourBoard.get(1).add(this.bWire);
+    fourBoard.get(1).add(this.lWire);
+
+    this.fourWorld = new LightEmAll(fourBoard, 
+        new ArrayList<GamePiece>(), new ArrayList<Edge>(), 2, 2, 1, 1, 5, "");
+    
+    this.fourWorldWin = new LightEmAll(fourBoard, 
+        new ArrayList<GamePiece>(), new ArrayList<Edge>(), 2, 2, 1, 1, 5, "win");
+    
+    // To be randomized and drawn on a 2x2 board
+    lWireR = new GamePiece(1, 1, true, false, false, false, false);
+    bWireR = new GamePiece(1, 0, true, false, false, false, false);
+    rtWireR = new GamePiece(0, 1, false, true, true, false, false);
+    rbWireR = new GamePiece(0, 0, false, true, false, true, false);
+    
+    this.fourBoardRand = new ArrayList<ArrayList<GamePiece>>();
+    fourBoardRand.add(new ArrayList<GamePiece>());
+    fourBoardRand.add(new ArrayList<GamePiece>());
+    fourBoardRand.get(0).add(this.rbWireR);
+    fourBoardRand.get(0).add(this.rtWireR);
+    fourBoardRand.get(1).add(this.bWireR);
+    fourBoardRand.get(1).add(this.lWireR);
+    
+    this.fourWorldRand = new LightEmAll(fourBoardRand, 
+        new ArrayList<GamePiece>(), new ArrayList<Edge>(), 2, 2, 1, 1, 5, "", new Random(1));
+    
+    // For testing draw on a 2x2 board
+    lWire1ForSix = new GamePiece(1, 1, true, false, false, false, false);
+    lWire2ForSix = new GamePiece(1, 0, true, false, false, false, false);
+    rtWireForSix = new GamePiece(0, 1, false, true, true, false, false);
+    rbWireForSix = new GamePiece(0, 0, false, true, false, true, false);
+    lbWireForSix = new GamePiece(2, 0, true, false, false, true, false);
+    tWireForSix = new GamePiece(2, 1, false, false, true, false, false);
+    
+    this.sixBoard = new ArrayList<ArrayList<GamePiece>>();
+    sixBoard.add(new ArrayList<GamePiece>());
+    sixBoard.add(new ArrayList<GamePiece>());
+    sixBoard.add(new ArrayList<GamePiece>());
+    sixBoard.get(0).add(this.rbWireForSix);
+    sixBoard.get(0).add(this.rtWireForSix);
+    sixBoard.get(1).add(this.lWire2ForSix);
+    sixBoard.get(1).add(this.lWire1ForSix);
+    sixBoard.get(2).add(this.lbWireForSix);
+    sixBoard.get(2).add(this.tWireForSix);
+
+    
+    horizontalBoard = new ArrayList<ArrayList<GamePiece>>();
+    // generation of horizontal wire board
+    for (int col = 0; col < 8; col++) {
+      horizontalBoard.add(new ArrayList<GamePiece>());
+      for (int row = 0; row < 9; row++) {
+        if (row == 0) {
+          horizontalBoard.get(col).add(new GamePiece(row, col, false, false, false, true, false));
+        }
+        else if (row == 8){
+          horizontalBoard.get(col).add(new GamePiece(row, col, false, false, true, false, false));
+        }
+        else if (col == 0 && row == 4) {
+          horizontalBoard.get(col).add(new GamePiece(row, col, false, true, true, true, false));
+        }
+        else if (col == 7 && row == 4) {
+          horizontalBoard.get(col).add(new GamePiece(row, col, true, false, true, true, false));
+        }
+        else if (row == 4) {
+          horizontalBoard.get(col).add(new GamePiece(row, col, true, true, true, true, false));
+        }
+        else {
+          horizontalBoard.get(col).add(new GamePiece(row, col, false, false, true, true, false));
         }
       }
     }
 
-    
-  }
-}
-
-// Represents a cell with a mine on it
-class MineCell extends ACell {
-  MineCell(ArrayList<ACell> neighbors, boolean hidden, boolean flagged) {
-    super(neighbors, hidden, flagged);
-  }
-
-  // Draws the individual cell
-  public WorldImage drawHelp() {
-    //    WorldImage base = new RectangleImage(IConstants.TILE_SIZE, 
-    //        IConstants.TILE_SIZE, OutlineMode.SOLID, IConstants.HIDDEN_COLOR);
-    //    WorldImage outline = new RectangleImage(IConstants.TILE_SIZE, 
-    //        IConstants.TILE_SIZE, OutlineMode.OUTLINE, IConstants.OUTLINE_COLOR);
-    //    WorldImage baseTile = new OverlayImage(outline, base);
-
-    if (this.hidden && !this.flagged) {
-      return IConstants.BASE_TILE;
+    verticalBoard = new ArrayList<ArrayList<GamePiece>>();
+    // generation of horizontal wire board
+    for (int col = 0; col < 8; col++) {
+      verticalBoard.add(new ArrayList<GamePiece>());
+      for (int row = 0; row < 9; row++) {
+        if (col == 0) {
+          verticalBoard.get(col).add(new GamePiece(row, col, false, true, false, false, false));
+        }
+        else if (col == 7){
+          verticalBoard.get(col).add(new GamePiece(row, col, true, false, false, false, false));
+        }
+        else if (row == 0 && col == 4) {
+          verticalBoard.get(col).add(new GamePiece(row, col, true, true, false, true, false));
+        }
+        else if (row == 8 && col == 4) {
+          verticalBoard.get(col).add(new GamePiece(row, col, true, true, true, false, false));
+        }
+        else if (col == 4) {
+          verticalBoard.get(col).add(new GamePiece(row, col, true, true, true, true, false));
+        }
+        else {
+          verticalBoard.get(col).add(new GamePiece(row, col, true, true, false, false, false));
+        }
+      }
     }
-    else if (this.hidden && this.flagged) {
-      return new OverlayImage(new EquilateralTriangleImage(IConstants.TILE_SIZE / 2, 
-          OutlineMode.SOLID, IConstants.FLAG_COLOR), IConstants.BASE_TILE);
-    }
-    else {
-      return new OverlayImage(new CircleImage(IConstants.TILE_SIZE / 4, 
-          OutlineMode.SOLID, IConstants.MINE_COLOR), IConstants.FULL_EMPTY_TILE);
-    }
-  }
-
-  // Returns true if this is a mine
-  public boolean isMine() {
-    return true;
-  }
-
-  @Override
-  public void floodFill(ArrayList<ACell> visited) {
-    // TODO zero cases
     
+    fourScene = new WorldScene(2 * IConstants.TILE_SIZE, (IConstants.TILE_SIZE * 2) + IConstants.TILE_SIZE);
+    sixScene = new WorldScene(3 * IConstants.TILE_SIZE, (IConstants.TILE_SIZE * 2) + IConstants.TILE_SIZE);
   }
 
-}
-
-class ExamplesMinesweeper {
-
-  ACell cell1;
-  ACell cell2;
-
-  ACell flagCell;
-  ACell mineCell;
-  ACell numberedCell;
-  ACell emptyCell;
-
-  ArrayList<ACell> mtList;
-  ArrayList<Integer> intList1;
-  ArrayList<Integer> intList2;
-  ArrayList<Integer> intList3;
-
-  ArrayList<ACell> mtCellList;
-  ArrayList<ACell> cellList1;
-  ArrayList<ACell> cellList2;
-  ArrayList<ACell> cellList2Test;
-  ArrayList<ACell> cellList3;
-  ArrayList<ACell> cellList4;
-  ArrayList<ACell> cellList5;
-
-  MineWorld init1;
-  WorldScene mw1;
-
-  WorldScene twoByTwoWorld;
-
-  // Initialize fields
-  void initTestConditions() {
-
-    twoByTwoWorld = new WorldScene(2 * IConstants.TILE_SIZE, 2 * IConstants.TILE_SIZE);
-
-    flagCell = new EmptyCell(new ArrayList<ACell>(), true, true);
-    mineCell = new MineCell(new ArrayList<ACell>(), false, false);
-    numberedCell = new EmptyCell(new ArrayList<ACell>(Arrays.asList(mineCell)), false, false);
-    emptyCell = new EmptyCell(new ArrayList<ACell>(), false, false);
-
-    // ArrayList inits
-    mtList = new ArrayList<ACell>();
-    intList1 = new ArrayList<Integer>(Arrays.asList(11, 1, 6, 3));
-    intList2 = new ArrayList<Integer>(Arrays.asList(11, 4, 14, 0, 7, 13, 15));
-    intList3 = new ArrayList<Integer>(Arrays.asList(9, 10, 6, 3, 2));
-
-    mtCellList = new ArrayList<ACell>();
-
-    cellList1 = new ArrayList<ACell>(Arrays.asList(new EmptyCell(new ArrayList<ACell>(), 
-        true, false),
-        new MineCell(new ArrayList<ACell>(), true, false), 
-        new EmptyCell(new ArrayList<ACell>(), true, false), 
-        new EmptyCell(new ArrayList<ACell>(), true, false), 
-        new MineCell(new ArrayList<ACell>(), true, false), 
-        new EmptyCell(new ArrayList<ACell>(), true, false), 
-        new MineCell(new ArrayList<ACell>(), true, false),
-        new EmptyCell(new ArrayList<ACell>(), true, false), 
-        new MineCell(new ArrayList<ACell>(), true, false)));
-
-    cellList2 = new ArrayList<ACell>(Arrays.asList(new EmptyCell(new ArrayList<ACell>(), 
-        true, false), new EmptyCell(new ArrayList<ACell>(), true, false), 
-        new MineCell(new ArrayList<ACell>(), true, false),
-        new EmptyCell(new ArrayList<ACell>(), true, false)));
-
-    cellList2.get(0).neighbors.add(cellList2.get(1));
-    cellList2.get(0).neighbors.add(cellList2.get(2));
-    cellList2.get(0).neighbors.add(cellList2.get(3));
-
-    cellList2.get(1).neighbors.add(cellList2.get(0));
-    cellList2.get(1).neighbors.add(cellList2.get(3));
-    cellList2.get(1).neighbors.add(cellList2.get(2));
-
-    cellList2.get(2).neighbors.add(cellList2.get(3));
-    cellList2.get(2).neighbors.add(cellList2.get(0));
-    cellList2.get(2).neighbors.add(cellList2.get(1));
-
-    cellList2.get(3).neighbors.add(cellList2.get(2));
-    cellList2.get(3).neighbors.add(cellList2.get(0));
-    cellList2.get(3).neighbors.add(cellList2.get(1));
-
-
-    cell1 = new EmptyCell(mtList, true, false);
-    cell2 = new EmptyCell(mtList, true, false);
-
-    cellList3 = new ArrayList<ACell>();
-
-    cellList4 = new ArrayList<ACell>(Arrays.asList(new EmptyCell(new ArrayList<ACell>(), 
-        false, false), new EmptyCell(new ArrayList<ACell>(), false, false), 
-        new MineCell(new ArrayList<ACell>(), true, true),
-        new EmptyCell(new ArrayList<ACell>(), true, false)));
-
-    cellList4.get(0).neighbors.add(cellList4.get(1));
-    cellList4.get(0).neighbors.add(cellList4.get(2));
-    cellList4.get(0).neighbors.add(cellList4.get(3));
-
-    cellList4.get(1).neighbors.add(cellList4.get(0));
-    cellList4.get(1).neighbors.add(cellList4.get(3));
-    cellList4.get(1).neighbors.add(cellList4.get(2));
-
-    cellList4.get(2).neighbors.add(cellList4.get(3));
-    cellList4.get(2).neighbors.add(cellList4.get(0));
-    cellList4.get(2).neighbors.add(cellList4.get(1));
-
-    cellList4.get(3).neighbors.add(cellList4.get(2));
-    cellList4.get(3).neighbors.add(cellList4.get(0));
-    cellList4.get(3).neighbors.add(cellList4.get(1));
-
-    cellList5 = new ArrayList<ACell>(Arrays.asList(new EmptyCell(new ArrayList<ACell>(), 
-        true, true),
-        new EmptyCell(new ArrayList<ACell>(), false, false), 
-        new EmptyCell(new ArrayList<ACell>(), true, false),
-        new MineCell(new ArrayList<ACell>(), true, false)));
-
-    cellList5.get(0).neighbors.add(cellList5.get(1));
-    cellList5.get(0).neighbors.add(cellList5.get(2));
-    cellList5.get(0).neighbors.add(cellList5.get(3));
-
-    cellList5.get(1).neighbors.add(cellList5.get(0));
-    cellList5.get(1).neighbors.add(cellList5.get(3));
-    cellList5.get(1).neighbors.add(cellList5.get(2));
-
-    cellList5.get(2).neighbors.add(cellList5.get(3));
-    cellList5.get(2).neighbors.add(cellList5.get(0));
-    cellList5.get(2).neighbors.add(cellList5.get(1));
-
-    cellList5.get(3).neighbors.add(cellList5.get(2));
-    cellList5.get(3).neighbors.add(cellList5.get(0));
-    cellList5.get(3).neighbors.add(cellList5.get(1));
-
-
-    init1 = new MineWorld(2, 2, 1, new Random(1));
-    mw1 = new WorldScene(2 * IConstants.TILE_SIZE, 2 * IConstants.TILE_SIZE);
+  void testLeftConnects(Tester t) {
+    this.init();
+    t.checkExpect(gp1.leftConnects(gp2), true);
+    t.checkExpect(gp2.leftConnects(gp1), false);
+    t.checkExpect(gp1.leftConnects(gp3), false);
+    t.checkExpect(gp5.leftConnects(gp2), true);
+    
+    t.checkExpect(this.testPieceL.leftConnects(this.testPieceR), true);
   }
 
-  void testExceptions(Tester t) {
-    this.initTestConditions();
+  void testRightConnects(Tester t) {
+    this.init();
+    t.checkExpect(gp2.rightConnects(gp1), true);
+    t.checkExpect(gp2.rightConnects(gp5), true);
+    t.checkExpect(gp1.rightConnects(gp2), false);
+    t.checkExpect(gp3.rightConnects(gp4), false);
+  }
+
+  void testTopConnects(Tester t) {
+    this.init();
+    t.checkExpect(gp3.topConnects(gp4), true);
+    t.checkExpect(gp3.topConnects(gp5), true);
+    t.checkExpect(gp4.topConnects(gp3), false);
+    t.checkExpect(gp1.topConnects(gp4), false);
     
-    t.checkConstructorException(
-        new IllegalArgumentException("Cannot have more mines than tiles on board!"),
-        "MineWorld",
-        10, 10, 101 // More mines than possible
-      );
+    t.checkExpect(this.rtWire.topConnects(this.rbWire), true);
+  }
+
+  void testBottomConnects(Tester t) {
+    this.init();
+    t.checkExpect(gp4.bottomConnects(gp3), true);
+    t.checkExpect(gp4.bottomConnects(gp5), true);
+    t.checkExpect(gp4.bottomConnects(gp1), false);
+    t.checkExpect(gp3.bottomConnects(gp4), false);
+  }
+
+  void testRotatePiece(Tester t) {
+    this.init();
+
+    this.gp1.rotatePiece();
+    t.checkExpect(this.gp1, new GamePiece(1, 0, false, false, true, false, false));
+    this.gp1.rotatePiece();
+    t.checkExpect(this.gp1, new GamePiece(1, 0, false, true, false, false, false));
+    this.gp1.rotatePiece();
+    t.checkExpect(this.gp1, new GamePiece(1, 0, false, false, false, true, false));
+
+    this.gp6.rotatePiece();
+    t.checkExpect(this.gp6, new GamePiece(0, 0, true, true, true, false, false));
+  }
+
+  void testfindMousePos(Tester t) {
+    this.init();
     
+    t.checkExpect(new Utils().findMousePos(50, 8, 9, new Posn(120, 30)), new Posn(2, -1));
+    t.checkExpect(new Utils().findMousePos(40, 10, 9, new Posn(125, 30)), new Posn(3, -1));
+    t.checkExpect(new Utils().findMousePos(40, 10, 9, new Posn(325, 50)), new Posn(8, 0));
   }
   
-  void testCountMines(Tester t) {
-    this.initTestConditions();
-    t.checkExpect(new Utils().countMines(this.mtCellList), 0);
-    t.checkExpect(new Utils().countMines(this.cellList1), 4);
-    t.checkExpect(new Utils().countMines(this.cellList2), 1);
-    t.checkExpect(new Utils().countMines(this.cellList4), 1);
-
-  }
-
-  void testAddNeighbor(Tester t) {
-    this.initTestConditions();
-
-    this.cell1.addNeighbor(cell2);
-    this.cell2.addNeighbor(cell1);
-    t.checkExpect(this.cell1.neighbors.get(0), cell2);
-    t.checkExpect(this.cell2.neighbors.get(0), cell1);
-  }
-
-  void testBuildList(Tester t) {
-    this.initTestConditions();
-    this.cellList2Test = new Utils().buildList(2, 2, 1, new Random(1));
-
-    t.checkExpect(this.cellList2Test.get(0).neighbors.size(), 3);
-    t.checkExpect(this.cellList2Test.get(1).neighbors.size(), 3);
-    t.checkExpect(this.cellList2Test.get(3).neighbors.size(), 3);
-
-    //    for (int i = 0; i < this.cellList2Test.size(); i++) {
-    //      t.checkExpect(cellList2Test.get(i), this.cellList2.get(i));
-    //    }
-    //t.checkExpect(this.cellList2Test, this.cellList2);
-  }
-
-  void testGetRow(Tester t) {
-    this.initTestConditions();
-
-    t.checkExpect(new Utils().getRow(2, 2, 0), 0);
-    t.checkExpect(new Utils().getRow(2, 2, 1), 0);
-    t.checkExpect(new Utils().getRow(2, 2, 2), 1);
-    t.checkExpect(new Utils().getRow(2, 2, 3), 1);
-  }
-
-  void testGetCol(Tester t) {
-    this.initTestConditions();
-
-    t.checkExpect(new Utils().getCol(2, 2, 0), 0);
-    t.checkExpect(new Utils().getCol(2, 2, 1), 1);
-    t.checkExpect(new Utils().getCol(2, 2, 2), 0);
-    t.checkExpect(new Utils().getCol(2, 2, 3), 1);
-
-    t.checkExpect(new Utils().getCol(4, 3, 4), 0);
-  }
-
-  void testIsMine(Tester t) {
-    this.initTestConditions();
-
-    t.checkExpect(this.cell1.isMine(), false);
-    t.checkExpect(this.cell2.isMine(), false);
-    t.checkExpect(new MineCell(cellList1, false, false).isMine(), true);
-  }
-
-  void testGenerateMineSeeds(Tester t) {
-    this.initTestConditions();
-
-    t.checkExpect(new Utils().generateMineSeeds(new Random(1), 4, 16), this.intList1);
-    t.checkExpect(new Utils().generateMineSeeds(new Random(2), 7, 16), this.intList2);
-    t.checkExpect(new Utils().generateMineSeeds(new Random(3), 5, 25), this.intList3);
-  }
-
-  void testContainsNumber(Tester t) {
-    this.initTestConditions();
-
-    t.checkExpect(new Utils().containsNumber(this.intList1, 1), true);
-    t.checkExpect(new Utils().containsNumber(this.intList1, 27), false);
-    t.checkExpect(new Utils().containsNumber(this.intList1, 6), true);
-  }
-  
-  void testFindCellIndex(Tester t) {
-    this.initTestConditions();
-
-    t.checkExpect(new Utils().findCellIndex(50, 3, 3, new Posn(10, 10), 0), 0);
-    t.checkExpect(new Utils().findCellIndex(50, 3, 3, new Posn(120, 51), 0), 5);
-    t.checkExpect(new Utils().findCellIndex(50, 10, 10, new Posn(340, 499), 0), 96);
+  void testRandomRotatePiece(Tester t) {
+    this.init();
+    this.gp1.randomRotatePiece(new Random(1));
+    t.checkExpect(this.gp1, new GamePiece(1, 0, false, false, false, true, false));
+    this.gp2.randomRotatePiece(new Random(1));
+    t.checkExpect(this.gp2, new GamePiece(8, 4, false, false, true, false, false));
+    this.gp3.randomRotatePiece(new Random(1));
+    t.checkExpect(this.gp3, new GamePiece(1, 1, true, false, false, false, false));
   }
 
   void testDraw(Tester t) {
-    this.initTestConditions();
+    this.init();
+    WorldImage col1 = new AboveImage(this.rbWire.tileImage(IConstants.TILE_SIZE, 5, false), 
+        this.rtWire.tileImage(IConstants.TILE_SIZE, 5, false));
+    WorldImage col2 = new AboveImage(this.bWire.tileImage(IConstants.TILE_SIZE, 5, false), 
+        this.lWire.tileImage(IConstants.TILE_SIZE, 5, true));
+    WorldImage mergedCol = new BesideImage(col1, col2);
+    WorldImage board = new AboveImage(new RectangleImage(IConstants.TILE_SIZE * 2, 
+        IConstants.TILE_SIZE, OutlineMode.SOLID, new Color(255, 239, 166)), mergedCol);
+    
+    this.fourScene.placeImageXY(board, IConstants.TILE_SIZE, ((IConstants.TILE_SIZE * 2)
+        + IConstants.TILE_SIZE) / 2);
 
-    WorldImage revealedEmpty = new OverlayImage(new TextImage("1", 
-        IConstants.TILE_SIZE / 2, IConstants.TEXT_COLOR1), IConstants.FULL_EMPTY_TILE);
-    WorldImage hiddenEmpty = new OverlayImage(IConstants.OUTLINE, IConstants.BASE_FILL);
-    WorldImage hiddenFlagged = new OverlayImage(new EquilateralTriangleImage(IConstants
-        .TILE_SIZE / 2, OutlineMode.SOLID, IConstants.FLAG_COLOR), IConstants.BASE_TILE);
-
-    WorldImage row1 = new BesideImage(new BesideImage(new EmptyImage(), 
-        revealedEmpty), revealedEmpty);
-    WorldImage row2 = new BesideImage(new BesideImage(new EmptyImage(), 
-        hiddenFlagged), hiddenEmpty);
-
-    WorldImage row3 = new BesideImage(new BesideImage(new EmptyImage(), 
-        hiddenFlagged), revealedEmpty);
-    WorldImage row4 = new BesideImage(new BesideImage(new EmptyImage(), 
-        hiddenEmpty), hiddenEmpty);
-
-    twoByTwoWorld.placeImageXY(new AboveImage(new AboveImage(new EmptyImage(), row1), row2),
-        IConstants.TILE_SIZE, IConstants.TILE_SIZE);
-    t.checkExpect(new Utils().draw(cellList4, 2, 2, 
-        new WorldScene(IConstants.TILE_SIZE * 2, 
-            IConstants.TILE_SIZE * 2)), this.twoByTwoWorld);
-
-    this.initTestConditions();
-    twoByTwoWorld.placeImageXY(new AboveImage(new AboveImage(new EmptyImage(), row3), row4),
-        IConstants.TILE_SIZE, IConstants.TILE_SIZE);
-    t.checkExpect(new Utils().draw(cellList5, 2, 2, 
-        new WorldScene(IConstants.TILE_SIZE * 2, 
-            IConstants.TILE_SIZE * 2)), this.twoByTwoWorld);
+    t.checkExpect(new ArrayListUtils().draw(this.fourBoard, 2, 2, 1, 1, 5, 
+        new WorldScene(2 * IConstants.TILE_SIZE, IConstants.TILE_SIZE * 3)), this.fourScene);
+    
+    this.init();
+    WorldImage col1a = new AboveImage(this.rbWireForSix.tileImage(IConstants.TILE_SIZE, 5, false), 
+        this.rtWireForSix.tileImage(IConstants.TILE_SIZE, 5, false));
+    WorldImage col2a = new AboveImage(this.lWire2ForSix.tileImage(IConstants.TILE_SIZE, 5, false), 
+        this.lWire1ForSix.tileImage(IConstants.TILE_SIZE, 5, true));
+    WorldImage col3 = new AboveImage(this.lbWireForSix.tileImage(IConstants.TILE_SIZE, 5, false), 
+        this.tWireForSix.tileImage(IConstants.TILE_SIZE, 5, false)); 
+    WorldImage newMergedCol1 = new BesideImage(col1a, col2a);
+    WorldImage mergedCol2 = new BesideImage(newMergedCol1, col3);
+    WorldImage board2 = new AboveImage(new RectangleImage(IConstants.TILE_SIZE * 3, 
+        IConstants.TILE_SIZE, OutlineMode.SOLID, new Color(255, 239, 166)), mergedCol2);
+    
+    this.sixScene.placeImageXY(board2, (3 * IConstants.TILE_SIZE) / 2, ((IConstants.TILE_SIZE * 2)
+        + IConstants.TILE_SIZE) / 2);
+    
+    t.checkExpect(new ArrayListUtils().draw(this.sixBoard, 3, 2, 1, 1, 5, 
+        new WorldScene(3 * IConstants.TILE_SIZE, IConstants.TILE_SIZE * 3)), this.sixScene);
+    
+    
+  }
+  
+  void testBfs(Tester t) {
+    this.init(); 
+    
+    t.checkExpect(new ArrayListUtils().bfs(this.fourBoard, this.lWire, this.bWire), false); 
+    t.checkExpect(new ArrayListUtils().bfs(this.fourBoard, this.lWire, this.rbWire), true);
+    t.checkExpect(new ArrayListUtils().bfs(this.fourBoard, this.lWire, this.rtWire), true);
+  
+  }
+  
+  void testGetConnectedNeighbors(Tester t) {
+    this.init();
+    
+    t.checkExpect(new ArrayListUtils().getConnectedNeighbors(this.fourBoard, lWire), 
+        new ArrayList<GamePiece>(Arrays.asList(this.rtWire)));
+    
+    t.checkExpect(new ArrayListUtils().getConnectedNeighbors(this.fourBoard, rtWire), 
+        new ArrayList<GamePiece>(Arrays.asList(this.lWire, this.rbWire)));
+    
+    t.checkExpect(new ArrayListUtils().getConnectedNeighbors(this.fourBoard, bWire), 
+        new ArrayList<GamePiece>(Arrays.asList()));
   }
 
-  void testDrawHelp(Tester t) {
-    this.initTestConditions();
+  void testDrawPiece(Tester t) {
+    this.init();
+    
+    WorldScene testScene = new WorldScene(500, 500);
 
-    WorldImage revealedEmpty = new OverlayImage(new TextImage("1", 
-        IConstants.TILE_SIZE / 2, IConstants.TEXT_COLOR1), IConstants.FULL_EMPTY_TILE);
-    WorldImage hiddenEmpty = new OverlayImage(IConstants.OUTLINE, IConstants.BASE_FILL);
-    WorldImage emptyRevealedEmpty = IConstants.FULL_EMPTY_TILE;
-    WorldImage hiddenFlagged = new OverlayImage(new EquilateralTriangleImage(IConstants
-        .TILE_SIZE / 2, OutlineMode.SOLID, IConstants.FLAG_COLOR), IConstants.BASE_TILE);
-    WorldImage revealedMine = new OverlayImage(new CircleImage(IConstants.TILE_SIZE / 4, 
-        OutlineMode.SOLID, IConstants.MINE_COLOR), IConstants.FULL_EMPTY_TILE);
+    int x = IConstants.TILE_SIZE; 
+    int y = IConstants.TILE_SIZE; 
 
-    t.checkExpect(this.cell1.drawHelp(), hiddenEmpty); 
-    t.checkExpect(this.numberedCell.drawHelp(), revealedEmpty);
-    t.checkExpect(this.flagCell.drawHelp(), hiddenFlagged);
-    t.checkExpect(this.emptyCell.drawHelp(), emptyRevealedEmpty);
-    t.checkExpect(this.mineCell.drawHelp(), revealedMine);
+    WorldImage pieceImage1 = this.lWire.tileImage(IConstants.TILE_SIZE, 5, true);
+    testScene.placeImageXY(pieceImage1, x, y);
+    
+    WorldScene expectedScene1 = new WorldScene(500, 500);
+    expectedScene1.placeImageXY(pieceImage1, x, y);
+
+    t.checkExpect(this.lWire.drawPiece(testScene, x, y), expectedScene1);
+
+    WorldImage pieceImage2 = this.bWire.tileImage(IConstants.TILE_SIZE, 5, false);
+    testScene.placeImageXY(pieceImage2, x * 2, y); 
+
+    WorldScene expectedScene2 = new WorldScene(500, 500);
+    expectedScene2.placeImageXY(pieceImage1, x, y);
+    expectedScene2.placeImageXY(pieceImage2, x * 2, y);
+
+    t.checkExpect(this.bWire.drawPiece(testScene, x * 2, y), expectedScene2);
+
   }
-
+  
   void testMakeScene(Tester t) {
-    this.initTestConditions();
-
-    WorldImage revealedEmpty = new OverlayImage(new TextImage("1", 
-        IConstants.TILE_SIZE / 2, IConstants.TEXT_COLOR1), IConstants.OUTLINE);
-    WorldImage hiddenEmpty = new OverlayImage(IConstants.OUTLINE, IConstants.BASE_FILL);
-    WorldImage hiddenFlagged = new OverlayImage(new EquilateralTriangleImage(IConstants
-        .TILE_SIZE / 2, OutlineMode.SOLID, IConstants.FLAG_COLOR), IConstants.BASE_TILE);
-
-    WorldImage row1 = new BesideImage(new BesideImage(new EmptyImage(), 
-        hiddenEmpty), hiddenEmpty);
-    WorldImage row2 = new BesideImage(new BesideImage(new EmptyImage(), 
-        hiddenEmpty), hiddenEmpty);
-
-    this.mw1.placeImageXY(new AboveImage(new AboveImage(new EmptyImage(), row1), row2),
-        IConstants.TILE_SIZE, IConstants.TILE_SIZE);
-
-    t.checkExpect(init1.makeScene(), this.mw1);
+    this.init();
+    //TODO
+  
+    WorldImage col1 = new AboveImage(new AboveImage(new EmptyImage(), this.rbWire.tileImage(IConstants.TILE_SIZE, 5, false)), 
+        this.rtWire.tileImage(IConstants.TILE_SIZE, 5, false));
+    
+    WorldImage col2 = new AboveImage(new AboveImage(new EmptyImage(), this.bWire.tileImage(IConstants.TILE_SIZE, 5, false)), 
+        this.lWire.tileImage(IConstants.TILE_SIZE, 5, true));
+    
+    WorldImage mergedCol = new BesideImage(new BesideImage(new EmptyImage(), col1), col2);
+    WorldImage board = new AboveImage(new RectangleImage(IConstants.TILE_SIZE * 2, 
+        IConstants.TILE_SIZE, OutlineMode.SOLID, new Color(255, 239, 166)), mergedCol);
+    
+    this.fourScene.placeImageXY(board, IConstants.TILE_SIZE, ((IConstants.TILE_SIZE * 2)
+        + IConstants.TILE_SIZE) / 2);
+    
+    t.checkExpect(this.fourWorld.makeScene(), this.fourScene);
+    
+    
+    WorldImage col3 = new AboveImage(new AboveImage(new EmptyImage(), this.rbWireR.tileImage(IConstants.TILE_SIZE, 5, false)), 
+        this.rtWireR.tileImage(IConstants.TILE_SIZE, 5, false));
+    
+    WorldImage col4 = new AboveImage(new AboveImage(new EmptyImage(), this.bWireR.tileImage(IConstants.TILE_SIZE, 5, false)), 
+        this.lWireR.tileImage(IConstants.TILE_SIZE, 5, true));
+    
+    WorldImage mergedCol2 = new BesideImage(new BesideImage(new EmptyImage(), col3), col4);
+    WorldImage board2 = new AboveImage(new RectangleImage(IConstants.TILE_SIZE * 2, 
+        IConstants.TILE_SIZE, OutlineMode.SOLID, new Color(255, 239, 166)), mergedCol2);
+    
+    this.fourScene.placeImageXY(board2, IConstants.TILE_SIZE, ((IConstants.TILE_SIZE * 2)
+        + IConstants.TILE_SIZE) / 2);
+    
+    t.checkExpect(this.fourWorldRand.makeScene(), this.fourScene);
+    
+    WorldScene winScreen = new WorldScene(2 * IConstants.TILE_SIZE, 2 * IConstants.TILE_SIZE + IConstants.TILE_SIZE);
+    winScreen.placeImageXY(new TextImage("You Win!", 
+        IConstants.TILE_SIZE / 2, Color.black), 
+        IConstants.TILE_SIZE , 
+        IConstants.TILE_SIZE);
+    
+    t.checkExpect(this.fourWorldWin.makeScene(), winScreen);
   }
+  
+  void atestSeedBigBang(Tester t) {
+    this.init();
 
-  void testBigBang(Tester t) {
-    this.initTestConditions();
-    int columns = 30;
-    int rows = 16;
-    int mines = 99;
+    int width = 2;
+    int height = 2;
 
-    MineWorld world = new MineWorld(columns, rows, mines, new Random(1));
-    int worldWidth = IConstants.TILE_SIZE * columns;
-    int worldHeight = IConstants.TILE_SIZE * rows;
+    int worldWidth = IConstants.TILE_SIZE * width;
+    int worldHeight = (IConstants.TILE_SIZE * height) + IConstants.TILE_SIZE;
     double tickRate = .1;
-    world.bigBang(worldWidth, worldHeight, tickRate);
+    this.fourWorld.bigBang(worldWidth, worldHeight, tickRate);
   }
 
-  void atestBigBang2(Tester t) {
-    this.initTestConditions();
-    int columns = 2;
-    int rows = 2;
-    int mines = 1;
+  void atestBigBang(Tester t) {
+    this.init();
 
-    MineWorld world = new MineWorld(columns, rows, mines, this.cellList4);
-    int worldWidth = IConstants.TILE_SIZE * columns;
-    int worldHeight = IConstants.TILE_SIZE * rows;
+    int width = 8;
+    int height = 9;
+
+    LightEmAll world = new LightEmAll(this.verticalBoard, 
+        new ArrayList<GamePiece>(), new ArrayList<Edge>(), width, height, 1, 1, 5);
+    int worldWidth = IConstants.TILE_SIZE * world.width;
+    int worldHeight = (IConstants.TILE_SIZE * world.height) + IConstants.TILE_SIZE;
     double tickRate = .1;
     world.bigBang(worldWidth, worldHeight, tickRate);
   }
 }
+
+
+
+
 
 
 
