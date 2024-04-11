@@ -30,7 +30,9 @@ class LightEmAll extends World {
   int powerRow;
   int powerCol;
   int radius;
+  String gameState;
 
+  // Constructor for real "random" games
   LightEmAll(ArrayList<ArrayList<GamePiece>> board,  ArrayList<GamePiece> nodes, ArrayList<Edge> mst,
       int width, int height, int powerRow, int powerCol, int radius) {
     this.board = board;
@@ -41,6 +43,8 @@ class LightEmAll extends World {
     this.powerRow = powerRow;
     this.powerCol = powerCol;
     this.radius = radius;
+    this.gameState = "";
+    
     
     for (int i = 0; i < this.board.size(); i++) {
       for (int j = 0; j < this.board.get(i).size(); j++) {
@@ -48,9 +52,31 @@ class LightEmAll extends World {
       }
     }
   }
-
-  public WorldScene makeScene() {
+  
+  // Constructor for testing different states with given random
+  LightEmAll(ArrayList<ArrayList<GamePiece>> board,  ArrayList<GamePiece> nodes, ArrayList<Edge> mst,
+      int width, int height, int powerRow, int powerCol, int radius, String gameState, Random rand) {
+    this.board = board;
+    this.nodes = nodes;
+    this.mst = mst;
+    this.width = width;
+    this.height = height;
+    this.powerRow = powerRow;
+    this.powerCol = powerCol;
+    this.radius = radius;
+    this.gameState = gameState;
     
+    
+    for (int i = 0; i < this.board.size(); i++) {
+      for (int j = 0; j < this.board.get(i).size(); j++) {
+        this.board.get(i).get(j).randomRotatePiece(rand);
+      }
+    }
+  }
+
+  // Builds the current WorldScene
+  public WorldScene makeScene() {
+    // Power connected wires using BFS
     for (int i = 0; i < this.board.size(); i++) {
       for (int j = 0; j < this.board.get(i).size(); j++) {
         if (new ArrayListUtils()
@@ -61,13 +87,43 @@ class LightEmAll extends World {
         else {
           this.board.get(i).get(j).powered = false;
         }
-
       }
     }
     
-    return new ArrayListUtils().draw(board, width, height, powerRow, powerCol, radius, 
-        new WorldScene(width * IConstants.TILE_SIZE, height * IConstants.TILE_SIZE));
+    // Check if all lines are powered using BFS
+    int currentLit = 0;
+    for (int i = 0; i < this.board.size(); i++) {
+      for (int j = 0; j < this.board.get(i).size(); j++) {
+        if (new ArrayListUtils()
+            .bfs(board, this.board.get(powerCol).get(powerRow), 
+                this.board.get(i).get(j))) {
+          currentLit += 1;
+        }
+        else {
+          currentLit -= 1;
+        }
+      }
+    }
+    if (currentLit == width * height) {
+      this.gameState = "win";
+    }
+    
+    // Draw the scene
+    if (this.gameState.equals("win")) {
+      WorldScene winScreen = new WorldScene(width * IConstants.TILE_SIZE, height * IConstants.TILE_SIZE + IConstants.TILE_SIZE);
+      winScreen.placeImageXY(new TextImage("You Win!", 
+          IConstants.TILE_SIZE / 2, Color.black), 
+          IConstants.TILE_SIZE * width / 2, 
+          ((IConstants.TILE_SIZE * height) / 2));
+      return winScreen;
+    }
+    else {
+      return new ArrayListUtils().draw(board, width, height, powerRow, powerCol, radius, 
+          new WorldScene(width * IConstants.TILE_SIZE, height * IConstants.TILE_SIZE + IConstants.TILE_SIZE));
+    }
+    
   }
+  
 
   public void onKeyEvent(String key) {
     if (key.equals("left") && !(this.powerCol == 0)) {
@@ -102,7 +158,7 @@ class LightEmAll extends World {
         this.width, this.height, pos);
     
     // Check for left mouse input and if that the player clicks on the board
-    if (buttonName.equals("LeftButton") && cellIndex.y >= 0) {
+    if (buttonName.equals("LeftButton") && cellIndex.y >= 0 && cellIndex.x >= 0) {
       this.board.get(cellIndex.x).get(cellIndex.y).rotatePiece();
     }
   }
@@ -157,7 +213,6 @@ class GamePiece {
       wireColor = Color.yellow;
     }
     
-
     WorldImage image = new OverlayImage(
         new RectangleImage(wireWidth, wireWidth, OutlineMode.SOLID, wireColor),
         new RectangleImage(size, size, OutlineMode.SOLID, Color.DARK_GRAY));
@@ -213,7 +268,7 @@ class GamePiece {
 }
 
 class Edge {
-
+  // For part 2
 }
 
 class ArrayListUtils {
@@ -242,35 +297,10 @@ class ArrayListUtils {
     } 
 
     result = new AboveImage(scoreBar, result);
-    ws.placeImageXY(result, IConstants.TILE_SIZE * width / 2, (IConstants.TILE_SIZE * height
+    ws.placeImageXY(result, IConstants.TILE_SIZE * width / 2, ((IConstants.TILE_SIZE * height)
         + IConstants.TILE_SIZE) / 2);
     return ws;
   }
-
-//  public void bfsV1(ArrayList<ArrayList<GamePiece>> board, GamePiece from) {
-//    ArrayDeque<GamePiece> alreadySeen = new ArrayDeque<GamePiece>();
-//    ArrayDeque<GamePiece> worklist = new ArrayDeque<GamePiece>();
-//
-//    // Initialize the worklist with the from vertex
-//    worklist.addFirst(from);
-//    // As long as the worklist isn't empty...
-//    while (!worklist.isEmpty()) {
-//      GamePiece next = worklist.removeFirst();
-//      if (alreadySeen.contains(next)) {
-//        // do nothing: we've already seen this one
-//      }
-//      else {
-//        // add all the neighbors of next to the worklist for further processing
-//        for (GamePiece gp : new ArrayListUtils().getConnectedNeighbors(board, next)) {
-//          worklist.addFirst(gp);
-//          gp.powered = true;
-//        }
-//        // add next to alreadySeen, since we're done with it
-//        alreadySeen.addFirst(next);
-//      }
-//    }
-//    
-//  }
   
   boolean bfs(ArrayList<ArrayList<GamePiece>> board, GamePiece from, GamePiece to) {
     ArrayDeque<GamePiece> alreadySeen = new ArrayDeque<GamePiece>();
@@ -343,15 +373,29 @@ class Utils {
 }
 
 class ExamplesLightEmAll {
+  WorldScene fourWorld;
+  WorldScene sixWorld;
+  
   ArrayList<ArrayList<GamePiece>> horizontalBoard;
   ArrayList<ArrayList<GamePiece>> verticalBoard;
+  ArrayList<ArrayList<GamePiece>> fourBoard;
+  ArrayList<ArrayList<GamePiece>> sixBoard;
+  
   GamePiece gp1;
   GamePiece gp2;
   GamePiece gp3;
   GamePiece gp4;
   GamePiece gp5;
   GamePiece gp6;
-
+  
+  GamePiece lWire1;
+  GamePiece lWire2;
+  GamePiece rtWire;
+  GamePiece rbWire;
+  
+  GamePiece lbWire;
+  GamePiece tWire;
+  
   void init() {
 
     gp1 = new GamePiece(1, 0, true, false, false, false, false);
@@ -361,6 +405,14 @@ class ExamplesLightEmAll {
     gp5 = new GamePiece(2, 7, true, true, true, true, false);
     gp6 = new GamePiece(0, 0, true, false, true, true, false);
 
+    lWire1 = new GamePiece(1, 1, true, false, false, false, false);
+    lWire2 = new GamePiece(1, 0, true, false, false, false, false);
+    rtWire = new GamePiece(0, 1, false, true, true, false, false);
+    rbWire = new GamePiece(0, 0, false, true, false, true, false);
+    
+    lbWire = new GamePiece(0, 2, true, false, false, true, false);
+    tWire = new GamePiece(1, 2, false, false, true, false, false);
+    
     horizontalBoard = new ArrayList<ArrayList<GamePiece>>();
     // generation of horizontal wire board
     for (int col = 0; col < 8; col++) {
@@ -411,8 +463,29 @@ class ExamplesLightEmAll {
           verticalBoard.get(col).add(new GamePiece(row, col, true, true, false, false, false));
         }
       }
+      
+      fourWorld = new WorldScene(2 * IConstants.TILE_SIZE, (IConstants.TILE_SIZE * 2) + IConstants.TILE_SIZE);
+      sixWorld = new WorldScene(3 * IConstants.TILE_SIZE, (IConstants.TILE_SIZE * 2) + IConstants.TILE_SIZE);
     }
-
+    
+    this.fourBoard = new ArrayList<ArrayList<GamePiece>>();
+    fourBoard.add(new ArrayList<GamePiece>());
+    fourBoard.add(new ArrayList<GamePiece>());
+    fourBoard.get(0).add(this.rbWire);
+    fourBoard.get(0).add(this.rtWire);
+    fourBoard.get(1).add(this.lWire2);
+    fourBoard.get(1).add(this.lWire1);
+    
+    this.sixBoard = new ArrayList<ArrayList<GamePiece>>();
+    sixBoard.add(new ArrayList<GamePiece>());
+    sixBoard.add(new ArrayList<GamePiece>());
+    sixBoard.add(new ArrayList<GamePiece>());
+    sixBoard.get(0).add(this.rbWire);
+    sixBoard.get(0).add(this.rtWire);
+    sixBoard.get(1).add(this.lWire2);
+    sixBoard.get(1).add(this.lWire1);
+    sixBoard.get(2).add(this.lbWire);
+    sixBoard.get(2).add(this.tWire);
   }
 
   void testLeftConnects(Tester t) {
@@ -469,19 +542,56 @@ class ExamplesLightEmAll {
     t.checkExpect(new Utils().findMousePos(40, 10, 9, new Posn(325, 50)), new Posn(8, 0));
   }
   
-  void testRandomRotatePiece() {
-    //TODO
+  void testRandomRotatePiece(Tester t) {
+    this.init();
+    this.gp1.randomRotatePiece(new Random(1));
+    t.checkExpect(this.gp1, new GamePiece(1, 0, false, false, false, true, false));
+    this.gp2.randomRotatePiece(new Random(1));
+    t.checkExpect(this.gp2, new GamePiece(8, 4, false, false, true, false, false));
+    this.gp3.randomRotatePiece(new Random(1));
+    t.checkExpect(this.gp3, new GamePiece(1, 1, true, false, false, false, false));
   }
 
   void testDraw(Tester t) {
-    //TODO
+    this.init();
+    WorldImage col1 = new AboveImage(this.rbWire.tileImage(IConstants.TILE_SIZE, 5, false), 
+        this.rtWire.tileImage(IConstants.TILE_SIZE, 5, false));
+    WorldImage col2 = new AboveImage(this.lWire2.tileImage(IConstants.TILE_SIZE, 5, false), 
+        this.lWire1.tileImage(IConstants.TILE_SIZE, 5, true));
+    WorldImage mergedCol = new BesideImage(col1, col2);
+    WorldImage board = new AboveImage(new RectangleImage(IConstants.TILE_SIZE * 2, 
+        IConstants.TILE_SIZE, OutlineMode.SOLID, new Color(255, 239, 166)), mergedCol);
+    
+    this.fourWorld.placeImageXY(board, IConstants.TILE_SIZE, ((IConstants.TILE_SIZE * 2)
+        + IConstants.TILE_SIZE) / 2);
 
+    t.checkExpect(new ArrayListUtils().draw(this.fourBoard, 2, 2, 1, 1, 5, 
+        new WorldScene(2 * IConstants.TILE_SIZE, IConstants.TILE_SIZE * 3)), this.fourWorld);
+    
+    WorldImage col3 = new AboveImage(this.lbWire.tileImage(IConstants.TILE_SIZE, 5, false), 
+        this.tWire.tileImage(IConstants.TILE_SIZE, 5, false)); 
+    WorldImage mergedCol2 = new BesideImage(mergedCol, col3);
+    WorldImage board2 = new AboveImage(new RectangleImage(IConstants.TILE_SIZE * 3, 
+        IConstants.TILE_SIZE, OutlineMode.SOLID, new Color(255, 239, 166)), mergedCol2);
+    
+    this.sixWorld.placeImageXY(board2, (3 * IConstants.TILE_SIZE) / 2, ((IConstants.TILE_SIZE * 2)
+        + IConstants.TILE_SIZE) / 2);
+    
+    t.checkExpect(new ArrayListUtils().draw(this.sixBoard, 3, 2, 1, 1, 5, 
+        new WorldScene(3 * IConstants.TILE_SIZE, IConstants.TILE_SIZE * 3)), this.sixWorld);
   }
 
   void testDrawPiece(Tester t) {
     this.init();
     //TODO
 
+  }
+  
+  void testMakeScene(Tester t) {
+    this.init();
+    //TODO
+
+    //WorldScene expectedWorld = ;
   }
 
   void testBigBang(Tester t) {
@@ -490,9 +600,9 @@ class ExamplesLightEmAll {
     int width = 8;
     int height = 9;
 
-    LightEmAll world = new LightEmAll(this.verticalBoard, null, null, width, height, 4, 7, 5);
+    LightEmAll world = new LightEmAll(this.verticalBoard, null, null, width, height, 4, 3, 5);
     int worldWidth = IConstants.TILE_SIZE * world.width;
-    int worldHeight = IConstants.TILE_SIZE * world.height + IConstants.TILE_SIZE;
+    int worldHeight = (IConstants.TILE_SIZE * world.height) + IConstants.TILE_SIZE;
     double tickRate = .1;
     world.bigBang(worldWidth, worldHeight, tickRate);
   }
